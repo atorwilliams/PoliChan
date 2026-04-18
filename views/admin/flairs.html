@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flair Rules — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+  <div id="admin-nav"></div>
+
+  <div class="admin-wrap">
+    <h2>Flair Rules</h2>
+    <p style="color:#888;font-size:.85rem;margin-bottom:16px;">
+      Rules are evaluated in descending priority order — the first match wins.<br>
+      <strong>manual</strong> = explicit wallet list &nbsp;|&nbsp;
+      <strong>erc20 / erc721 / erc1155</strong> = on-chain balance check &nbsp;|&nbsp;
+      <strong>polipass</strong> = PoliPass tier check (min balance = min tier: 1/2/3).
+    </p>
+
+    <button class="btn" onclick="openCreate()">+ New Rule</button>
+
+    <table id="rules-table" style="margin-top:16px;width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:6px 10px">Priority</th>
+          <th style="text-align:left;padding:6px 10px">Name</th>
+          <th style="text-align:left;padding:6px 10px">Label</th>
+          <th style="text-align:left;padding:6px 10px">Preview</th>
+          <th style="text-align:left;padding:6px 10px">Type</th>
+          <th style="text-align:left;padding:6px 10px">Chain</th>
+          <th style="text-align:left;padding:6px 10px">Active</th>
+          <th style="padding:6px 10px"></th>
+        </tr>
+      </thead>
+      <tbody id="rules-body">
+        <tr><td colspan="8" style="padding:12px;color:#888">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Create / Edit Modal -->
+  <div id="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:24px;width:520px;max-height:90vh;overflow-y:auto;">
+      <h3 id="modal-title" style="margin:0 0 16px">New Flair Rule</h3>
+
+      <form id="flair-form" onsubmit="submitForm(event)">
+        <input type="hidden" id="f-id">
+
+        <div class="field-row">
+          <label>Name <span class="dim">(admin label)</span></label>
+          <input id="f-name" required placeholder="Donor Gold">
+        </div>
+        <div class="field-row">
+          <label>Label <span class="dim">(shown on posts)</span></label>
+          <input id="f-label" required placeholder="Gold Donor">
+        </div>
+
+        <div style="display:flex;gap:12px;">
+          <div class="field-row" style="flex:1">
+            <label>Text colour</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="color" id="f-color" value="#ffffff" style="width:44px;height:32px;padding:2px;cursor:pointer">
+              <input id="f-color-hex" value="#ffffff" style="flex:1" oninput="syncColor('color')">
+            </div>
+          </div>
+          <div class="field-row" style="flex:1">
+            <label>Badge colour</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="color" id="f-bgColor" value="#555555" style="width:44px;height:32px;padding:2px;cursor:pointer">
+              <input id="f-bgColor-hex" value="#555555" style="flex:1" oninput="syncColor('bgColor')">
+            </div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <label>Preview</label>
+          <span id="flair-preview" class="post-flair" style="font-size:.9rem">Gold Donor</span>
+        </div>
+
+        <div class="field-row">
+          <label>Match type</label>
+          <select id="f-matchType" onchange="updateMatchFields()">
+            <option value="manual">manual (wallet list)</option>
+            <option value="erc20">ERC-20 (fungible token)</option>
+            <option value="erc721">ERC-721 (NFT)</option>
+            <option value="erc1155">ERC-1155 (multi-token)</option>
+            <option value="polipass">PoliPass (tiered pass)</option>
+          </select>
+        </div>
+
+        <div id="token-fields">
+          <div class="field-row">
+            <label>Contract address</label>
+            <input id="f-tokenAddress" placeholder="0x…">
+          </div>
+          <div style="display:flex;gap:12px;">
+            <div class="field-row" style="flex:1">
+              <label>Chain ID</label>
+              <select id="f-chainId">
+                <option value="1">1 — Ethereum</option>
+                <option value="137">137 — Polygon</option>
+                <option value="8453">8453 — Base</option>
+                <option value="11155111">11155111 — Sepolia</option>
+              </select>
+            </div>
+            <div class="field-row" style="flex:1">
+              <label>Min balance</label>
+              <input id="f-minBalance" value="1" placeholder="1">
+            </div>
+          </div>
+          <div id="tokenid-row" class="field-row" style="display:none">
+            <label>Token ID <span class="dim">(ERC-1155 only)</span></label>
+            <input id="f-tokenId" placeholder="0">
+          </div>
+        </div>
+
+        <div id="wallet-fields" style="display:none">
+          <div class="field-row">
+            <label>Wallets <span class="dim">(one per line, 0x…)</span></label>
+            <textarea id="f-wallets" rows="4" placeholder="0xABC…&#10;0xDEF…" style="width:100%;font-family:monospace;font-size:.8rem;background:#111;color:#eee;border:1px solid #333;border-radius:4px;padding:6px;resize:vertical"></textarea>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;">
+          <div class="field-row" style="flex:1">
+            <label>Priority <span class="dim">(higher = first)</span></label>
+            <input id="f-priority" type="number" value="0">
+          </div>
+          <div class="field-row" style="flex:1;padding-top:22px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="f-isActive" checked style="width:auto">
+              Active
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn">Save Rule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/.static/js/admin-common.js"></script>
+  <script>
+    adminNav('/admin/flairs');
+
+    const CHAIN_NAMES = { 1: 'ETH', 137: 'MATIC', 8453: 'Base', 11155111: 'Sepolia' };
+
+    let rules = [];
+
+    async function load() {
+      const data = await api('GET', '/admin/api/flairs');
+      rules = data.rules;
+      render();
+    }
+
+    function render() {
+      const tbody = document.getElementById('rules-body');
+      if (!rules.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="padding:12px;color:#888">No rules yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rules.map(r => `
+        <tr style="border-top:1px solid #222">
+          <td style="padding:6px 10px">${r.priority}</td>
+          <td style="padding:6px 10px">${esc(r.name)}</td>
+          <td style="padding:6px 10px">${esc(r.label)}</td>
+          <td style="padding:6px 10px">
+            <span class="post-flair" style="background:${esc(r.bgColor)};color:${esc(r.color)}">${esc(r.label)}</span>
+          </td>
+          <td style="padding:6px 10px">${esc(r.matchType)}</td>
+          <td style="padding:6px 10px">${CHAIN_NAMES[r.chainId] || r.chainId}</td>
+          <td style="padding:6px 10px">${r.isActive ? '✓' : '—'}</td>
+          <td style="padding:6px 10px;white-space:nowrap">
+            <button class="btn btn-sm" onclick='openEdit(${JSON.stringify(r)})'>Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteRule('${r._id}')">Del</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openCreate() {
+      document.getElementById('modal-title').textContent = 'New Flair Rule';
+      document.getElementById('f-id').value = '';
+      document.getElementById('f-name').value = '';
+      document.getElementById('f-label').value = '';
+      document.getElementById('f-color').value = '#ffffff';
+      document.getElementById('f-color-hex').value = '#ffffff';
+      document.getElementById('f-bgColor').value = '#555555';
+      document.getElementById('f-bgColor-hex').value = '#555555';
+      document.getElementById('f-matchType').value = 'manual';
+      document.getElementById('f-tokenAddress').value = '';
+      document.getElementById('f-chainId').value = '1';
+      document.getElementById('f-minBalance').value = '1';
+      document.getElementById('f-tokenId').value = '';
+      document.getElementById('f-wallets').value = '';
+      document.getElementById('f-priority').value = '0';
+      document.getElementById('f-isActive').checked = true;
+      updateMatchFields();
+      updatePreview();
+      showModal();
+    }
+
+    function openEdit(r) {
+      document.getElementById('modal-title').textContent = 'Edit Flair Rule';
+      document.getElementById('f-id').value = r._id;
+      document.getElementById('f-name').value = r.name;
+      document.getElementById('f-label').value = r.label;
+      document.getElementById('f-color').value = r.color;
+      document.getElementById('f-color-hex').value = r.color;
+      document.getElementById('f-bgColor').value = r.bgColor;
+      document.getElementById('f-bgColor-hex').value = r.bgColor;
+      document.getElementById('f-matchType').value = r.matchType;
+      document.getElementById('f-tokenAddress').value = r.tokenAddress || '';
+      document.getElementById('f-chainId').value = String(r.chainId || 1);
+      document.getElementById('f-minBalance').value = r.minBalance || '1';
+      document.getElementById('f-tokenId').value = r.tokenId || '';
+      document.getElementById('f-wallets').value = (r.wallets || []).join('\n');
+      document.getElementById('f-priority').value = r.priority ?? 0;
+      document.getElementById('f-isActive').checked = r.isActive !== false;
+      updateMatchFields();
+      updatePreview();
+      showModal();
+    }
+
+    function updateMatchFields() {
+      const type = document.getElementById('f-matchType').value;
+      document.getElementById('token-fields').style.display  = type === 'manual' ? 'none' : '';
+      document.getElementById('wallet-fields').style.display = type === 'manual' ? ''     : 'none';
+      document.getElementById('tokenid-row').style.display   = type === 'erc1155' ? ''    : 'none';
+    }
+
+    function syncColor(field) {
+      const hex = document.getElementById(`f-${field}-hex`).value;
+      if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        document.getElementById(`f-${field}`).value = hex;
+      }
+      updatePreview();
+    }
+
+    // Keep color pickers in sync with hex inputs
+    document.addEventListener('DOMContentLoaded', () => {
+      ['color', 'bgColor'].forEach(f => {
+        document.getElementById(`f-${f}`).addEventListener('input', () => {
+          document.getElementById(`f-${f}-hex`).value = document.getElementById(`f-${f}`).value;
+          updatePreview();
+        });
+      });
+      document.getElementById('f-label').addEventListener('input', updatePreview);
+    });
+
+    function updatePreview() {
+      const label   = document.getElementById('f-label').value || 'Preview';
+      const color   = document.getElementById('f-color').value;
+      const bgColor = document.getElementById('f-bgColor').value;
+      const el = document.getElementById('flair-preview');
+      el.textContent = label;
+      el.style.color = color;
+      el.style.background = bgColor;
+    }
+
+    async function submitForm(e) {
+      e.preventDefault();
+      const id   = document.getElementById('f-id').value;
+      const type = document.getElementById('f-matchType').value;
+      const body = {
+        name:         document.getElementById('f-name').value.trim(),
+        label:        document.getElementById('f-label').value.trim(),
+        color:        document.getElementById('f-color').value,
+        bgColor:      document.getElementById('f-bgColor').value,
+        matchType:    type,
+        tokenAddress: type !== 'manual' ? document.getElementById('f-tokenAddress').value.trim() || null : null,
+        tokenId:      type === 'erc1155' ? document.getElementById('f-tokenId').value.trim() || null : null,
+        chainId:      type !== 'manual' ? parseInt(document.getElementById('f-chainId').value) : 1,
+        minBalance:   type !== 'manual' ? document.getElementById('f-minBalance').value.trim() || '1' : '1',
+        wallets:      type === 'manual'
+          ? document.getElementById('f-wallets').value.split('\n').map(w => w.trim()).filter(Boolean)
+          : [],
+        priority:     parseInt(document.getElementById('f-priority').value) || 0,
+        isActive:     document.getElementById('f-isActive').checked
+      };
+
+      try {
+        if (id) {
+          await api('PATCH', `/admin/api/flairs/${id}`, body);
+          toast('Rule updated');
+        } else {
+          await api('POST', '/admin/api/flairs', body);
+          toast('Rule created');
+        }
+        closeModal();
+        load();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }
+
+    async function deleteRule(id) {
+      if (!confirm('Delete this flair rule?')) return;
+      try {
+        await api('DELETE', `/admin/api/flairs/${id}`);
+        toast('Deleted');
+        load();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }
+
+    function showModal() {
+      const el = document.getElementById('modal-backdrop');
+      el.style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal-backdrop').style.display = 'none';
+    }
+
+    document.getElementById('modal-backdrop').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    load();
+  </script>
+</body>
+</html>

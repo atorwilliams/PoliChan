@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wall of Supporters — PoliChan</title>
+  <link rel="stylesheet" href="/.static/css/main.css">
+  <style>
+    #wall-page {
+      max-width: 860px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+
+    #wall-page h1 {
+      font-size: 1.4rem;
+      color: var(--subject);
+      margin-bottom: 4px;
+    }
+
+    #wall-page .subtitle {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 24px;
+    }
+
+    /* ── Post button bar ── */
+
+    #wall-actions {
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #wall-actions button {
+      padding: 8px 20px;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #wall-actions button:hover { background: var(--red-dark); }
+
+    #wall-status {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    /* ── Compose form ── */
+
+    #compose-wrap {
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      padding: 18px 16px;
+      margin-bottom: 24px;
+    }
+
+    #compose-wrap h2 {
+      font-size: 1rem;
+      color: var(--subject);
+      margin-bottom: 14px;
+    }
+
+    .compose-field {
+      margin-bottom: 12px;
+    }
+
+    .compose-field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .compose-field input[type="text"],
+    .compose-field textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--input-bg);
+      border: 1px solid var(--border-form);
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 0.88rem;
+      font-family: inherit;
+    }
+
+    .compose-field textarea {
+      resize: vertical;
+      min-height: 140px;
+    }
+
+    .compose-anon {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    #compose-submit {
+      padding: 8px 24px;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #compose-submit:hover:not(:disabled) { background: var(--red-dark); }
+    #compose-submit:disabled { background: var(--muted); cursor: default; }
+
+    #compose-error {
+      color: red;
+      font-size: 0.82rem;
+      margin-top: 8px;
+    }
+
+    /* ── Wall posts ── */
+
+    .wall-post {
+      background: var(--op-bg);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+
+    .wall-post-header {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .wall-post-title {
+      font-size: 1.05rem;
+      font-weight: bold;
+      color: var(--subject);
+      flex: 1;
+    }
+
+    .wall-post-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .wall-minister-badge {
+      background: #0d001a;
+      color: #ffd700;
+      font-size: 0.72rem;
+      font-weight: bold;
+      padding: 2px 7px;
+      border: 1px solid #ffd700;
+    }
+
+    .wall-post-author {
+      font-size: 0.82rem;
+      color: var(--name);
+      margin-bottom: 6px;
+    }
+
+    .wall-post-wallet {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .wall-post-body {
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .wall-verify-link {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 10px;
+      display: block;
+    }
+
+    .wall-verify-link a { color: var(--link); }
+
+    #wall-empty {
+      text-align: center;
+      padding: 48px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    #wall-loading {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<div id="nav">
+  <a class="brand" href="/">Poli<span>Chan</span></a>
+  <div class="nav-links">
+    <a href="/">Boards</a>
+    <a href="/pass">PoliPass</a>
+    <a href="/wall" class="active" style="color:#fff;font-weight:bold">Wall</a>
+  </div>
+  <div class="nav-right">
+    <button id="walletBtn">Connect Wallet</button>
+  </div>
+</div>
+
+<div id="wall-page">
+  <h1>Wall of Supporters</h1>
+  <p class="subtitle">
+    Minister-tier pass holders only. Write whatever you want. Posts stay up forever,
+    signed by your wallet so authorship is provable. You don't need an account and
+    posts are only removed if they break US law or the site's global rules.
+  </p>
+
+  <div id="wall-actions">
+    <button id="postBtn">Write on the Wall</button>
+    <span id="wall-status"></span>
+  </div>
+
+  <div id="compose-wrap" style="display:none">
+    <h2>New Post</h2>
+    <div class="compose-field">
+      <label>Display Name <span style="color:var(--muted)">(optional)</span></label>
+      <input type="text" id="c-name" placeholder="Anonymous Minister" maxlength="50">
+    </div>
+    <div class="compose-field">
+      <label>Title</label>
+      <input type="text" id="c-title" placeholder="What do you want to say?" maxlength="120">
+    </div>
+    <div class="compose-field">
+      <label>Body</label>
+      <textarea id="c-body" placeholder="Write whatever you want. This is permanent."></textarea>
+    </div>
+    <div class="compose-anon">
+      <input type="checkbox" id="c-anon">
+      <label for="c-anon">Post anonymously (hide wallet address from public)</label>
+    </div>
+    <button id="compose-submit">Sign &amp; Post</button>
+    <div id="compose-error"></div>
+  </div>
+
+  <div id="wall-loading">Loading…</div>
+  <div id="wall-posts"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="/.static/js/wall.js"></script>
+</body>
+</html>

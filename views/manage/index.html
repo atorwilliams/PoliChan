@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage — PoliChan</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .poll-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .poll-row:last-child { border-bottom: none; }
+    .poll-meta { flex: 1; min-width: 0; }
+    .poll-question { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
+    .poll-options  { font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    .poll-option   { display: flex; gap: 8px; align-items: center; margin: 2px 0; }
+    .poll-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .poll-bar      { height: 100%; background: var(--accent, #4a9eff); border-radius: 3px; transition: width 0.3s; }
+    .poll-pct      { width: 36px; text-align: right; }
+    .poll-actions  { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .badge-closed  { background: #555; color: #ccc; }
+    .badge-open    { background: #2a5; color: #fff; }
+    .status-bar { display: flex; align-items: center; gap: 10px; padding: 8px 0 16px; font-size: 0.82rem; color: var(--muted); }
+    #boardTitle { margin: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="page-header">
+    <div>
+      <h1 id="boardTitle">Manage Panel</h1>
+      <div class="status-bar">
+        <span id="sessionInfo"></span>
+        <span>|</span>
+        <a href="/" style="color:var(--muted)">← Back to boards</a>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="showCreateForm()">+ New Poll</button>
+  </div>
+
+  <!-- Create poll form -->
+  <div class="panel" id="createPanel" style="display:none">
+    <div class="panel-header">
+      Create Poll
+      <button class="btn btn-ghost btn-sm" onclick="hideCreateForm()">Cancel</button>
+    </div>
+    <div class="panel-body">
+      <div class="field" style="margin-bottom:12px">
+        <label>Question</label>
+        <input type="text" id="f-question" placeholder="What is your question?" maxlength="200">
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Options <span style="color:var(--muted);font-weight:400;text-transform:none">(2–6, one per line)</span></label>
+        <textarea id="f-options" rows="4" placeholder="Option A&#10;Option B&#10;Option C" style="width:100%;box-sizing:border-box;resize:vertical"></textarea>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label>Closes At <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+        <input type="datetime-local" id="f-closes">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="createPoll()">Create Poll</button>
+        <span class="error-msg" id="createError"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Poll list -->
+  <div class="panel">
+    <div class="panel-header">Active Polls <span id="pollCount" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="pollList"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+
+<script>
+  const boardUri = window.location.pathname.split('/').filter(Boolean)[1] || '';
+  let boardName  = '';
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function api(method, url, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j;
+  }
+
+  function toast(msg, isErr) {
+    const t = document.createElement('div');
+    t.className = 'toast' + (isErr ? ' toast-error' : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  async function init() {
+    try {
+      const { board, session } = await api('GET', `/manage/api/${boardUri}`);
+      boardName = board.name;
+      document.title = `Manage /${boardUri}/ — PoliChan`;
+      document.getElementById('boardTitle').textContent = `Manage /${boardUri}/`;
+      document.getElementById('sessionInfo').textContent =
+        `Logged in as ${session.role}${session.isAdmin ? ' (admin)' : ''}`;
+    } catch (e) {
+      document.getElementById('sessionInfo').textContent = 'Not authenticated';
+    }
+    loadPolls();
+  }
+
+  async function loadPolls() {
+    try {
+      const { polls } = await api('GET', `/manage/api/${boardUri}/polls`);
+      document.getElementById('pollCount').textContent = `(${polls.length})`;
+      const el = document.getElementById('pollList');
+
+      if (!polls.length) {
+        el.innerHTML = '<div class="empty">No polls yet. Create one above.</div>';
+        return;
+      }
+
+      el.innerHTML = polls.map(p => {
+        const total     = p.poll.options.reduce((s, o) => s + o.votes, 0);
+        const isClosed  = p.isLocked || (p.poll.closesAt && new Date(p.poll.closesAt) < new Date());
+        const closesStr = p.poll.closesAt
+          ? `Closes ${new Date(p.poll.closesAt).toLocaleString()}`
+          : 'No expiry';
+
+        const optionsHtml = p.poll.options.map(o => {
+          const pct = total > 0 ? Math.round(o.votes / total * 100) : 0;
+          return `<div class="poll-option">
+            <span style="min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.text)}</span>
+            <div class="poll-bar-wrap"><div class="poll-bar" style="width:${pct}%"></div></div>
+            <span class="poll-pct">${pct}%</span>
+            <span style="color:var(--muted)">${o.votes}</span>
+          </div>`;
+        }).join('');
+
+        return `<div class="poll-row">
+          <div class="poll-meta">
+            <div class="poll-question">${esc(p.poll.question)}</div>
+            <div class="poll-options">${optionsHtml}</div>
+            <div style="font-size:0.75rem;color:var(--muted)">
+              Thread No.${p.threadId} &bull; ${total} vote${total !== 1 ? 's' : ''} &bull; ${closesStr}
+              ${isClosed ? ' &bull; <strong>CLOSED</strong>' : ''}
+            </div>
+          </div>
+          <div class="poll-actions">
+            <a class="btn btn-ghost btn-sm" href="/${boardUri}/${p.threadId}" target="_blank">View</a>
+            <a class="btn btn-ghost btn-sm" href="/manage/api/${boardUri}/polls/${p.threadId}/export.json" download>Export</a>
+            ${!isClosed
+              ? `<button class="btn btn-ghost btn-sm" onclick="closePoll(${p.threadId})">Close</button>`
+              : ''}
+            <button class="btn btn-danger btn-sm" onclick="deletePoll(${p.threadId})">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('pollList').innerHTML = `<div class="empty" style="color:#e55">${esc(e.message)}</div>`;
+    }
+  }
+
+  function showCreateForm() {
+    document.getElementById('createPanel').style.display = 'block';
+    document.getElementById('createError').textContent = '';
+    document.getElementById('f-question').focus();
+  }
+
+  function hideCreateForm() {
+    document.getElementById('createPanel').style.display = 'none';
+  }
+
+  async function createPoll() {
+    const errEl    = document.getElementById('createError');
+    const question = document.getElementById('f-question').value.trim();
+    const options  = document.getElementById('f-options').value
+      .split('\n').map(s => s.trim()).filter(Boolean);
+    const closesAt = document.getElementById('f-closes').value || null;
+
+    errEl.textContent = '';
+    if (!question) { errEl.textContent = 'Question is required'; return; }
+    if (options.length < 2) { errEl.textContent = 'At least 2 options required'; return; }
+    if (options.length > 6) { errEl.textContent = 'Maximum 6 options'; return; }
+
+    try {
+      const { threadId } = await api('POST', `/manage/api/${boardUri}/polls`, {
+        question,
+        options,
+        closesAt
+      });
+      toast(`Poll created — thread No.${threadId}`);
+      hideCreateForm();
+      document.getElementById('f-question').value = '';
+      document.getElementById('f-options').value  = '';
+      document.getElementById('f-closes').value   = '';
+      loadPolls();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  }
+
+  async function closePoll(threadId) {
+    if (!confirm('Close this poll? Voting will end but results are kept.')) return;
+    try {
+      await api('DELETE', `/manage/api/${boardUri}/polls/${threadId}`, { action: 'close' });
+      toast('Poll closed');
+      loadPolls();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function deletePoll(threadId) {
+    if (!confirm('Delete this poll thread entirely? This cannot be undone.')) return;
+    try {
+      await api('DELETE', `/manage/api/${boardUri}/polls/${threadId}`, { action: 'delete' });
+      toast('Poll deleted');
+      loadPolls();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  init();
+</script>
+</body>
+</html>

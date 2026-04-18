@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PoliChan Admin Login</title>
+  <style>
+    body { background: #0d0d0d; color: #fff; font-family: monospace; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .box { background: #191919; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 40px; width: 100%; max-width: 420px; }
+    h1 { font-size: 1.1rem; margin: 0 0 24px; color: rgba(255,255,255,0.6); font-weight: 400; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+    input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; padding: 10px 12px; font-family: monospace; font-size: 0.9rem; box-sizing: border-box; }
+    button { width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; padding: 11px; font-family: monospace; font-size: 0.9rem; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
+    button:hover { background: rgba(255,255,255,0.14); }
+    #error { color: #ff6b6b; font-size: 0.82rem; margin-top: 12px; display: none; }
+    .challenge-box { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px 12px; font-size: 0.75rem; word-break: break-all; color: rgba(255,255,255,0.5); margin-bottom: 12px; display: none; }
+    .sep { text-align: center; color: rgba(255,255,255,0.2); font-size: 0.75rem; margin: 20px 0; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <h1>PoliChan / admin login</h1>
+
+  <!-- Wallet login -->
+  <button id="walletBtn">Connect MetaMask</button>
+
+  <div class="sep">— or —</div>
+
+  <!-- Private key login -->
+  <div class="field">
+    <label>Challenge</label>
+    <div class="challenge-box" id="challengeBox"></div>
+    <button id="getChallengeBtn" type="button">Get Challenge</button>
+  </div>
+  <div class="field">
+    <label>Signature (from node tools/sign.js)</label>
+    <input type="text" id="signatureInput" placeholder="base64 signature">
+  </div>
+  <button id="pkBtn">Login with Private Key</button>
+
+  <div id="error"></div>
+</div>
+
+<script>
+  const err = document.getElementById('error');
+  function showError(msg) { err.textContent = msg; err.style.display = 'block'; }
+
+  // ── MetaMask login ──────────────────────────────────────────────────────────
+  document.getElementById('walletBtn').addEventListener('click', async () => {
+    if (!window.ethereum) return showError('MetaMask not detected');
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const address = accounts[0];
+      const { nonce } = await fetch('/api/auth/nonce').then(r => r.json());
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [nonce, address]
+      });
+      const res = await fetch('/api/auth/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, signature, nonce })
+      }).then(r => r.json());
+
+      if (res.ok && res.isAdmin) {
+        window.location.href = '/admin';
+      } else {
+        showError('Wallet is not an admin wallet');
+      }
+    } catch (e) {
+      showError(e.message);
+    }
+  });
+
+  // ── Private key login ───────────────────────────────────────────────────────
+  let currentChallenge = null;
+
+  document.getElementById('getChallengeBtn').addEventListener('click', async () => {
+    const { challenge } = await fetch('/admin/challenge').then(r => r.json());
+    currentChallenge = challenge;
+    const box = document.getElementById('challengeBox');
+    box.textContent = challenge;
+    box.style.display = 'block';
+  });
+
+  document.getElementById('pkBtn').addEventListener('click', async () => {
+    if (!currentChallenge) return showError('Get a challenge first');
+    const signature = document.getElementById('signatureInput').value.trim();
+    if (!signature) return showError('Paste your signature');
+
+    const res = await fetch('/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge: currentChallenge, signature })
+    }).then(r => r.json());
+
+    if (res.ok) {
+      window.location.href = '/admin';
+    } else {
+      showError(res.error || 'Login failed');
+    }
+  });
+</script>
+</body>
+</html>

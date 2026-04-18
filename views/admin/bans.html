@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bans — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header"><h1>Bans</h1></div>
+
+  <div class="panel">
+    <div class="panel-header">Active Bans <span id="banCount" style="color:var(--muted)"></span></div>
+    <div id="banList"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/bans');
+
+  async function load() {
+    const { bans } = await api('GET', '/admin/api/bans');
+    document.getElementById('banCount').textContent = `(${bans.length})`;
+    const el = document.getElementById('banList');
+
+    if (!bans.length) { el.innerHTML = '<div class="empty">No active bans</div>'; return; }
+
+    el.innerHTML = '<table><thead><tr><th>IP Hash</th><th>Reason</th><th>Scope</th><th>Expires</th><th>Created</th><th></th></tr></thead><tbody>'
+      + bans.map(b => `<tr>
+          <td class="mono">${b.ip.slice(0, 12)}…</td>
+          <td><span class="badge badge-${b.reason}">${b.reason}</span></td>
+          <td>${b.boardUri ? `<span class="board-uri">/${esc(b.boardUri)}/</span>` : '<span style="color:var(--red)">Global</span>'}</td>
+          <td class="mono">${b.expiresAt ? formatDate(b.expiresAt) : 'Permanent'}</td>
+          <td class="mono">${formatDate(b.createdAt)}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="liftBan('${b._id}')">Lift</button></td>
+        </tr>`).join('')
+      + '</tbody></table>';
+  }
+
+  async function liftBan(id) {
+    if (!confirm('Lift this ban?')) return;
+    try {
+      await api('DELETE', `/admin/api/bans/${id}`);
+      toast('Ban lifted');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  load();
+</script>
+</body>
+</html>

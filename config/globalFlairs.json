@@ -1,0 +1,10 @@
+[
+  { "label": "Fell For It",       "color": "#ff6b6b", "bgColor": "#1a0000" },
+  { "label": "Memory Holed",      "color": "#999999", "bgColor": "#111111" },
+  { "label": "Glowie",            "color": "#00ff41", "bgColor": "#001a06" },
+  { "label": "Shill",             "color": "#ffd700", "bgColor": "#1a1200" },
+  { "label": "Schizo-posting",    "color": "#c8a9ff", "bgColor": "#120a1a" },
+  { "label": "Based",             "color": "#ff6600", "bgColor": "#0d0000" },
+  { "label": "Doing My Own Research", "color": "#7ec8e3", "bgColor": "#061218" },
+  { "label": "Fact-Checked",      "color": "#aaffaa", "bgColor": "#021002" }
+]

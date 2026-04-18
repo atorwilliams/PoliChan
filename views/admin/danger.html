@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Danger Zone — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .danger-box {
+      border: 1px solid #ef4444;
+      border-radius: var(--r);
+      padding: 28px;
+      background: #1a0a0a;
+      max-width: 560px;
+    }
+    .danger-box h2 { color: #ef4444; margin: 0 0 8px; }
+    .danger-box p  { color: var(--muted); margin: 0 0 20px; font-size: 0.85rem; line-height: 1.5; }
+    .danger-box label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .danger-box textarea {
+      width: 100%; box-sizing: border-box;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; color: #fff; font-family: monospace; font-size: 0.78rem;
+      padding: 8px; resize: vertical; margin-bottom: 14px;
+    }
+    .danger-box input[type=text] {
+      width: 100%; box-sizing: border-box;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; color: #fff; font-size: 0.88rem;
+      padding: 8px 10px; margin-bottom: 14px;
+    }
+    .challenge-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; padding: 10px 14px;
+      font-family: monospace; font-size: 0.8rem; word-break: break-all;
+      color: #fff; margin-bottom: 20px;
+    }
+    .keys-ok {
+      background: #0a1f0a; border: 1px solid #22c55e;
+      border-radius: 4px; padding: 12px 16px;
+      color: #22c55e; font-size: 0.88rem; margin-bottom: 20px;
+    }
+    #wipe-error { color: #ef4444; font-size: 0.82rem; margin-bottom: 12px; min-height: 1.2em; }
+    .btn-danger { background: #7f1d1d; border: 1px solid #ef4444; color: #fff; }
+    .btn-danger:hover { background: #991b1b; }
+  </style>
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header">
+    <h1 style="color:#ef4444">Danger Zone</h1>
+  </div>
+
+  <div class="danger-box">
+    <h2>Nuclear Wipe</h2>
+    <p>Permanently deletes every thread, post, report, and uploaded file. Board post counters are reset to zero. There is no undo and no backup is made by this action.</p>
+    <p>Two separate ED25519 signatures over the challenge nonce are required. Both must verify against the configured public keys before anything is deleted.</p>
+
+    <!-- Step 1: get nonce -->
+    <div id="wipe-step-1">
+      <button class="btn btn-ghost" id="getChallengeBtn">Get Challenge Nonce</button>
+    </div>
+
+    <!-- Step 2: paste signatures -->
+    <div id="wipe-step-2" style="display:none">
+      <p style="margin-bottom:8px;font-size:0.82rem;color:var(--muted)">Sign this nonce with both keys using the .bat file, then paste the base64 signatures below.</p>
+      <div class="challenge-box" id="wipe-challenge-text"></div>
+
+      <label>Signature 1 (base64)</label>
+      <textarea id="wipe-sig1" rows="3" placeholder="base64-encoded ED25519 signature from key 1"></textarea>
+
+      <label>Signature 2 (base64)</label>
+      <textarea id="wipe-sig2" rows="3" placeholder="base64-encoded ED25519 signature from key 2"></textarea>
+
+      <div id="wipe-error"></div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" id="verifyKeysBtn">Verify Keys</button>
+        <button class="btn btn-ghost" id="cancelWipeBtn">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Step 3: confirmed execution -->
+    <div id="wipe-step-3" style="display:none">
+      <div class="keys-ok">Both keys accepted.</div>
+      <label>Type TURN to drop the bombs</label>
+      <input type="text" id="wipe-confirm" placeholder="TURN" autocomplete="off">
+
+      <div id="wipe-error-3"></div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-danger" id="executeWipeBtn">Execute Wipe</button>
+        <button class="btn btn-ghost"  id="cancelWipeBtn3">Cancel</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/danger');
+
+  let _wipeChallenge = null;
+
+  function resetWipe() {
+    _wipeChallenge = null;
+    document.getElementById('wipe-step-1').style.display = '';
+    document.getElementById('wipe-step-2').style.display = 'none';
+    document.getElementById('wipe-step-3').style.display = 'none';
+    document.getElementById('wipe-sig1').value = '';
+    document.getElementById('wipe-sig2').value = '';
+    document.getElementById('wipe-confirm').value = '';
+    document.getElementById('wipe-error').textContent = '';
+    document.getElementById('wipe-error-3').textContent = '';
+    const btn = document.getElementById('executeWipeBtn');
+    btn.disabled = false;
+    btn.textContent = 'Execute Wipe';
+  }
+
+  document.getElementById('getChallengeBtn').addEventListener('click', async () => {
+    try {
+      const res = await api('GET', '/admin/api/wipe/challenge');
+      _wipeChallenge = res.challenge;
+      document.getElementById('wipe-challenge-text').textContent = res.challenge;
+      document.getElementById('wipe-step-1').style.display = 'none';
+      document.getElementById('wipe-step-2').style.display = '';
+      document.getElementById('wipe-error').textContent = '';
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('cancelWipeBtn').addEventListener('click', resetWipe);
+  document.getElementById('cancelWipeBtn3').addEventListener('click', resetWipe);
+
+  document.getElementById('verifyKeysBtn').addEventListener('click', async () => {
+    const errEl = document.getElementById('wipe-error');
+    const sig1  = document.getElementById('wipe-sig1').value.trim();
+    const sig2  = document.getElementById('wipe-sig2').value.trim();
+
+    if (!sig1) { errEl.textContent = 'Signature 1 is required.'; return; }
+    if (!sig2) { errEl.textContent = 'Signature 2 is required.'; return; }
+
+    const btn = document.getElementById('verifyKeysBtn');
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+
+    try {
+      await api('POST', '/admin/api/wipe/verify', { challenge: _wipeChallenge, sig1, sig2 });
+      document.getElementById('wipe-step-2').style.display = 'none';
+      document.getElementById('wipe-step-3').style.display = '';
+    } catch (e) {
+      errEl.textContent = e.message;
+      btn.disabled = false;
+      btn.textContent = 'Verify Keys';
+    }
+  });
+
+  document.getElementById('executeWipeBtn').addEventListener('click', async () => {
+    const errEl  = document.getElementById('wipe-error-3');
+    const confirm = document.getElementById('wipe-confirm').value.trim();
+
+    if (confirm !== 'TURN') { errEl.textContent = 'Type TURN in the confirmation box.'; return; }
+    if (!_wipeChallenge)    { errEl.textContent = 'No active challenge. Start over.'; return; }
+
+    const btn = document.getElementById('executeWipeBtn');
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Wiping...';
+      await api('POST', '/admin/api/wipe', { challenge: _wipeChallenge });
+      toast('Forum wiped.');
+      resetWipe();
+    } catch (e) {
+      errEl.textContent = e.message;
+      btn.disabled = false;
+      btn.textContent = 'Execute Wipe';
+    }
+  });
+</script>
+</body>
+</html>

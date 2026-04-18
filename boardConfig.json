@@ -1,0 +1,30 @@
+{
+  "hubCities": {
+    "ca-ab": [
+      { "uri": "ca-ab-yyc", "name": "Calgary",   "airport": "YYC" },
+      { "uri": "ca-ab-yeg", "name": "Edmonton",  "airport": "YEG" }
+    ],
+    "ca-bc": [
+      { "uri": "ca-bc-yvr", "name": "Greater Vancouver", "airport": "YVR" },
+      { "uri": "ca-bc-yyj", "name": "Victoria",          "airport": "YYJ" }
+    ],
+    "ca-on": [
+      { "uri": "ca-on-yyz", "name": "Toronto", "airport": "YYZ" },
+      { "uri": "ca-on-yow", "name": "Ottawa",  "airport": "YOW" }
+    ],
+    "ca-qc": [
+      { "uri": "ca-qc-yul", "name": "Montreal",     "airport": "YUL" },
+      { "uri": "ca-qc-yqb", "name": "Quebec City",  "airport": "YQB" }
+    ],
+    "ca-mb": [
+      { "uri": "ca-mb-ywg", "name": "Winnipeg", "airport": "YWG" }
+    ],
+    "ca-sk": [
+      { "uri": "ca-sk-yxe", "name": "Saskatoon", "airport": "YXE" },
+      { "uri": "ca-sk-yqr", "name": "Regina",    "airport": "YQR" }
+    ],
+    "ca-ns": [
+      { "uri": "ca-ns-yhz", "name": "Halifax", "airport": "YHZ" }
+    ]
+  }
+}

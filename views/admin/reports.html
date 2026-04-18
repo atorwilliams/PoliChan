@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reports — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header"><h1>Reports</h1></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+    <div class="panel">
+      <div class="panel-header"><span>🗑 Spam Queue</span><span id="spamCount" style="color:var(--muted)"></span></div>
+      <div id="spamList"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span>🚨 Illegal Queue</span><span id="illegalCount" style="color:var(--muted)"></span></div>
+      <div id="illegalList"><div class="empty">Loading…</div></div>
+    </div>
+
+  </div>
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/reports');
+
+  async function load() {
+    const { reports } = await api('GET', '/admin/api/reports');
+
+    const spam    = reports.filter(r => r.reason === 'spam');
+    const illegal = reports.filter(r => r.reason === 'illegal');
+
+    document.getElementById('spamCount').textContent    = `(${spam.length})`;
+    document.getElementById('illegalCount').textContent = `(${illegal.length})`;
+
+    renderQueue('spamList',    spam);
+    renderQueue('illegalList', illegal);
+  }
+
+  function renderQueue(elId, reports) {
+    const el = document.getElementById(elId);
+    if (!reports.length) { el.innerHTML = '<div class="empty">No open reports</div>'; return; }
+
+    el.innerHTML = '<table><thead><tr><th>Board</th><th>Thread</th><th>Post</th><th>Date</th><th>Actions</th></tr></thead><tbody>'
+      + reports.map(r => `<tr>
+          <td><span class="board-uri">/${esc(r.boardUri)}/</span></td>
+          <td><a href="/${esc(r.boardUri)}/${r.threadId}" target="_blank" style="color:var(--blue)">#${r.threadId}</a></td>
+          <td>${r.postId ? `No.${r.postId}` : '<span style="color:var(--muted)">OP</span>'}</td>
+          <td class="mono">${formatDate(r.createdAt)}</td>
+          <td style="display:flex;gap:5px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="resolve('${r._id}')">Resolve</button>
+            ${r.postId
+              ? `<button class="btn btn-danger btn-sm" onclick="deletePost('${r._id}','${r.boardUri}',${r.postId})">Del Post</button>`
+              : `<button class="btn btn-danger btn-sm" onclick="deleteThread('${r._id}','${r.boardUri}',${r.threadId})">Del Thread</button>`
+            }
+          </td>
+        </tr>`).join('')
+      + '</tbody></table>';
+  }
+
+  async function resolve(reportId) {
+    try {
+      await api('POST', `/admin/api/reports/${reportId}/resolve`);
+      toast('Report resolved');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function deletePost(reportId, boardUri, postId) {
+    if (!confirm(`Delete post No.${postId}?`)) return;
+    try {
+      await api('DELETE', `/admin/api/posts/${encodeURIComponent(boardUri)}/${postId}`);
+      await api('POST',   `/admin/api/reports/${reportId}/resolve`);
+      toast('Post deleted');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function deleteThread(reportId, boardUri, threadId) {
+    if (!confirm(`Delete entire thread #${threadId} and all its replies?`)) return;
+    try {
+      await api('DELETE', `/admin/api/threads/${encodeURIComponent(boardUri)}/${threadId}`);
+      await api('POST',   `/admin/api/reports/${reportId}/resolve`);
+      toast('Thread deleted');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  load();
+</script>
+</body>
+</html>

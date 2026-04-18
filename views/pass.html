@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PoliPass — PoliChan</title>
+  <link rel="stylesheet" href="/.static/css/main.css">
+  <style>
+    #pass-page {
+      max-width: 860px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+
+    #pass-page h1 {
+      font-size: 1.4rem;
+      color: var(--subject);
+      margin-bottom: 4px;
+    }
+
+    #pass-page .subtitle {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 24px;
+    }
+
+    /* ── Status bar ── */
+
+    #pass-status {
+      background: var(--reply-bg);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #pass-status .wallet-addr {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    #pass-status .pass-badge {
+      background: var(--red);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: bold;
+      padding: 2px 8px;
+    }
+
+    #pass-status .pass-expiry {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* ── Tier cards ── */
+
+    #tier-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .tier-card {
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      padding: 18px 16px;
+    }
+
+    .tier-card.current {
+      border-color: var(--red);
+      border-width: 2px;
+    }
+
+    .tier-card .tier-name {
+      font-size: 1rem;
+      font-weight: bold;
+      color: var(--subject);
+      margin-bottom: 2px;
+    }
+
+    .tier-card .tier-usd {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: var(--red);
+      margin-bottom: 2px;
+    }
+
+    .tier-card .tier-eth {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-family: monospace;
+    }
+
+    .tier-card ul {
+      list-style: none;
+      font-size: 0.82rem;
+      margin-bottom: 16px;
+      line-height: 1.7;
+    }
+
+    .tier-card ul li::before {
+      content: '✓ ';
+      color: var(--name);
+      font-weight: bold;
+    }
+
+    .tier-card ul li.locked::before {
+      content: '';
+    }
+
+    .tier-card ul li.locked {
+      color: var(--muted);
+      text-decoration: line-through;
+    }
+
+    .tier-card .tier-action {
+      width: 100%;
+      padding: 7px 0;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .tier-card .tier-action:hover:not(:disabled) {
+      background: var(--red-dark);
+    }
+
+    .tier-card .tier-action:disabled {
+      background: var(--muted);
+      cursor: default;
+    }
+
+    .tier-card .current-label {
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--red);
+      padding: 7px 0;
+      border: 2px solid var(--red);
+    }
+
+    /* ── Connect prompt ── */
+
+    #connect-prompt {
+      text-align: center;
+      padding: 40px;
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      margin-bottom: 24px;
+    }
+
+    #connect-prompt p {
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-size: 0.9rem;
+    }
+
+    #connect-prompt button {
+      padding: 9px 24px;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #connect-prompt button:hover { background: var(--red-dark); }
+
+    /* ── Notice ── */
+
+    #pass-notice {
+      background: var(--reply-bg);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    #pass-notice strong { color: var(--text); }
+
+    /* ── Tx state ── */
+
+    .tx-pending {
+      text-align: center;
+      padding: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<div id="nav">
+  <a class="brand" href="/">Poli<span>Chan</span></a>
+  <div class="nav-links">
+    <a href="/">Boards</a>
+    <a href="/pass" class="active" style="color:#fff;font-weight:bold">PoliPass</a>
+  </div>
+  <div class="nav-right">
+    <button id="walletBtn">Connect Wallet</button>
+  </div>
+</div>
+
+<div id="pass-page">
+  <h1>PoliPass</h1>
+  <p class="subtitle">A one-year forum pass, tied to your wallet. Pick a tier, pay once, done.</p>
+
+  <div id="pass-status" style="display:none"></div>
+
+  <div id="connect-prompt">
+    <p>Connect your wallet to see live pricing and get your pass.</p>
+    <button id="connectBtn">Connect MetaMask</button>
+  </div>
+
+  <div id="tier-cards" style="display:none">
+    <div class="tier-card" id="card-1">
+      <div class="tier-name">Constituent</div>
+      <div class="tier-usd">$10 USD</div>
+      <div class="tier-eth" id="price-1">loading…</div>
+      <ul>
+        <li>Skip the captcha</li>
+        <li>Flair badge on your posts</li>
+        <li>Shorter flood timer</li>
+        <li class="locked">Bigger upload limit</li>
+        <li class="locked">Access to /members/</li>
+        <li class="locked">Wall of Supporters</li>
+      </ul>
+      <div id="action-1"></div>
+    </div>
+
+    <div class="tier-card" id="card-2">
+      <div class="tier-name">Member</div>
+      <div class="tier-usd">$25 USD</div>
+      <div class="tier-eth" id="price-2">loading…</div>
+      <ul>
+        <li>Skip the captcha</li>
+        <li>Flair badge on your posts</li>
+        <li>Shorter flood timer</li>
+        <li>Bigger upload limit</li>
+        <li>Access to /members/</li>
+        <li class="locked">Wall of Supporters</li>
+      </ul>
+      <div id="action-2"></div>
+    </div>
+
+    <div class="tier-card" id="card-3">
+      <div class="tier-name">Minister</div>
+      <div class="tier-usd">$40 USD</div>
+      <div class="tier-eth" id="price-3">loading…</div>
+      <ul>
+        <li>Skip the captcha</li>
+        <li>Flair badge on your posts</li>
+        <li>Shorter flood timer</li>
+        <li>Bigger upload limit</li>
+        <li>Access to /members/</li>
+        <li>Wall of Supporters</li>
+      </ul>
+      <div id="action-3"></div>
+    </div>
+  </div>
+
+  <div id="pass-notice">
+    You pay in ETH, but the price is always pegged to USD via a Chainlink price feed, so it doesn't matter if ETH pumps or dumps. Pass is valid for 365 days. You can upgrade to a higher tier at any point and only pay for the time you have left.
+  </div>
+  <div id="pass-notice" style="margin-top:10px">
+    Once your NFT lands in your wallet, disconnect and reconnect your wallet on the forum for your new tier to take effect.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="/.static/js/pass.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d0d0d;
+  --surface:  #141414;
+  --surface2: #1a1a1a;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --text:     rgba(255,255,255,0.88);
+  --muted:    rgba(255,255,255,0.38);
+  --faint:    rgba(255,255,255,0.06);
+  --blue:     #3a7bd5;
+  --red:      #ef4444;
+  --green:    #22c55e;
+  --gold:     #c8922a;
+  --r:        7px;
+}
+
+html { font-size: 14px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+}
+
+a { color: var(--blue); text-decoration: none; }
+
+/* ── Nav ─────────────────────────────────────────────────────────────────────── */
+
+#admin-nav {
+  height: 46px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+#admin-nav .brand {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #fff;
+  margin-right: 16px;
+  white-space: nowrap;
+}
+
+#admin-nav .dim { color: var(--muted); font-weight: 400; }
+
+#admin-nav a {
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 5px 10px;
+  border-radius: 5px;
+  transition: color 0.13s, background 0.13s;
+  white-space: nowrap;
+}
+
+#admin-nav a:hover  { color: #fff; background: var(--faint); }
+#admin-nav a.active { color: #fff; background: rgba(58,123,213,0.15); }
+
+/* ── Layout ──────────────────────────────────────────────────────────────────── */
+
+main { padding: 28px 28px 80px; max-width: 1100px; }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* ── Cards / panels ──────────────────────────────────────────────────────────── */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 20px;
+}
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-body { padding: 18px; }
+
+/* ── Table ───────────────────────────────────────────────────────────────────── */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--faint); }
+
+.mono { font-family: monospace; font-size: 0.78rem; color: var(--muted); }
+
+/* ── Form ────────────────────────────────────────────────────────────────────── */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-grid.cols-1 { grid-template-columns: 1fr; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field.span-2 { grid-column: span 2; }
+
+label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+input, select, textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 8px 11px;
+  width: 100%;
+  transition: border-color 0.13s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+textarea { resize: vertical; min-height: 72px; }
+
+select option { background: #1a1a1a; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.13s, border-color 0.13s;
+  white-space: nowrap;
+}
+
+.btn-primary { background: var(--blue);  color: #fff; border-color: var(--blue); }
+.btn-primary:hover { background: #2d6bc4; border-color: #2d6bc4; }
+
+.btn-ghost { background: var(--faint); color: var(--muted); border-color: var(--border2); }
+.btn-ghost:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+.btn-danger { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.25); }
+.btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.badge-spam    { background: rgba(200,146,42,0.15); color: var(--gold);  border: 1px solid rgba(200,146,42,0.3); }
+.badge-illegal { background: rgba(239,68,68,0.12);  color: var(--red);   border: 1px solid rgba(239,68,68,0.25); }
+.badge-mod     { background: rgba(58,123,213,0.12); color: var(--blue);  border: 1px solid rgba(58,123,213,0.25); }
+.badge-janitor { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--border2); }
+
+/* ── Misc ────────────────────────────────────────────────────────────────────── */
+
+.empty { text-align: center; color: var(--muted); padding: 40px; font-size: 0.85rem; }
+
+.error-msg { color: var(--red); font-size: 0.78rem; margin-top: 6px; }
+
+.board-uri { color: var(--blue); font-family: monospace; font-size: 0.82rem; }
+
+.indent { padding-left: 24px; }
+
+/* ── Form fields (used in modals) ────────────────────────────────────────────── */
+
+.field-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field-row label { font-size: 0.78rem; color: var(--muted); }
+.field-row input, .field-row select, .field-row textarea {
+  background: #111; color: #eee; border: 1px solid var(--border2);
+  border-radius: 4px; padding: 6px 8px; font-size: 0.83rem; width: 100%;
+  box-sizing: border-box;
+}
+.field-row input:focus, .field-row select:focus, .field-row textarea:focus {
+  outline: none; border-color: var(--blue);
+}
+
+/* ── Flair badge (mirrors main.css .post-flair for admin preview) ─────────────── */
+
+.post-flair {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

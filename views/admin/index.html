@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 32px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+    .stat-card .val { font-size: 2rem; font-weight: 700; color: #fff; }
+    .stat-card .lbl { font-size: 0.68rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.1em; }
+  </style>
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header"><h1>Dashboard</h1></div>
+
+  <div class="stat-cards">
+    <div class="stat-card"><div class="val" id="statBoards">—</div><div class="lbl">Boards</div></div>
+    <div class="stat-card"><div class="val" id="statReports">—</div><div class="lbl">Open Reports</div></div>
+    <div class="stat-card"><div class="val" id="statBans">—</div><div class="lbl">Active Bans</div></div>
+  </div>
+
+  <h2 style="margin-bottom:12px">Quick Actions</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:48px">
+    <a class="btn btn-primary" href="/admin/boards">Manage Boards</a>
+    <a class="btn btn-ghost" href="/admin/reports">Review Reports</a>
+    <button class="btn btn-ghost" id="runSeeder">Run Board Seeder</button>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin');
+
+  async function load() {
+    const [boards, reports, bans] = await Promise.all([
+      api('GET', '/admin/api/boards'),
+      api('GET', '/admin/api/reports'),
+      api('GET', '/admin/api/bans')
+    ]);
+    document.getElementById('statBoards').textContent  = boards.boards?.length  ?? '—';
+    document.getElementById('statReports').textContent = reports.reports?.length ?? '—';
+    document.getElementById('statBans').textContent    = bans.bans?.length      ?? '—';
+  }
+  load();
+
+  document.getElementById('runSeeder').addEventListener('click', async () => {
+    try {
+      const res = await api('POST', '/admin/api/seeder/run');
+      toast(`Seeder done — ${res.created} board(s) created`);
+      load();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  // ── Nuclear wipe ──────────────────────────────────────────────────────────────
+
+  let _wipeChallenge = null;
+
+  document.getElementById('getChallengeBtn').addEventListener('click', async () => {
+    try {
+      const res = await api('GET', '/admin/api/wipe/challenge');
+      _wipeChallenge = res.challenge;
+      document.getElementById('wipe-challenge-text').textContent = res.challenge;
+      document.getElementById('wipe-step-1').style.display = 'none';
+      document.getElementById('wipe-step-2').style.display = '';
+      document.getElementById('wipe-error').textContent = '';
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('cancelWipeBtn').addEventListener('click', () => {
+    _wipeChallenge = null;
+    document.getElementById('wipe-step-2').style.display = 'none';
+    document.getElementById('wipe-step-1').style.display = '';
+    document.getElementById('wipe-sig1').value = '';
+    document.getElementById('wipe-sig2').value = '';
+    document.getElementById('wipe-confirm').value = '';
+    document.getElementById('wipe-error').textContent = '';
+  });
+
+  document.getElementById('executeWipeBtn').addEventListener('click', async () => {
+    const errEl = document.getElementById('wipe-error');
+    const sig1  = document.getElementById('wipe-sig1').value.trim();
+    const sig2  = document.getElementById('wipe-sig2').value.trim();
+    const confirm = document.getElementById('wipe-confirm').value.trim();
+
+    if (confirm !== 'WIPE') { errEl.textContent = 'Type WIPE in the confirmation box.'; return; }
+    if (!sig1)               { errEl.textContent = 'Signature 1 is required.'; return; }
+    if (!sig2)               { errEl.textContent = 'Signature 2 is required.'; return; }
+    if (!_wipeChallenge)     { errEl.textContent = 'No active challenge. Request a new one.'; return; }
+
+    if (!confirm('This will permanently delete every post, thread, and upload. There is no undo. Proceed?')) return;
+
+    try {
+      document.getElementById('executeWipeBtn').disabled = true;
+      document.getElementById('executeWipeBtn').textContent = 'Wiping…';
+      await api('POST', '/admin/api/wipe', { challenge: _wipeChallenge, sig1, sig2 });
+      toast('Forum wiped.');
+      document.getElementById('wipe-step-2').style.display = 'none';
+      document.getElementById('wipe-step-1').style.display = '';
+      _wipeChallenge = null;
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+      document.getElementById('executeWipeBtn').disabled = false;
+      document.getElementById('executeWipeBtn').textContent = 'Execute Wipe';
+    }
+  });
+</script>
+</body>
+</html>

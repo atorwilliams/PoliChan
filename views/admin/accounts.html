@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Accounts — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header">
+    <h1>Staff Accounts</h1>
+  </div>
+
+  <!-- Assign staff by wallet address -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header">Assign Staff Role</div>
+    <div class="panel-body">
+      <div class="form-grid cols-3" style="margin-bottom:12px">
+        <div class="field span-2">
+          <label>Wallet Address</label>
+          <input type="text" id="sa-wallet" placeholder="0x...">
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select id="sa-role">
+            <option value="mod">Mod</option>
+            <option value="janitor">Janitor</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="assignRole()">Assign</button>
+        <span class="error-msg" id="saError"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff list -->
+  <div class="panel">
+    <div class="panel-header">Global Staff <span id="staffCount" style="color:var(--muted)"></span></div>
+    <div id="staffList"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- Board role assignment -->
+  <div class="panel" style="margin-top:20px">
+    <div class="panel-header">Board-Specific Roles</div>
+    <div class="panel-body">
+      <p style="color:var(--muted);font-size:0.82rem;margin:0 0 12px">
+        Assign a mod or janitor role to a wallet address for a specific board only.
+        Board roles are separate from the global staff role and prevent cross-board influence.
+      </p>
+      <div class="form-grid cols-3" style="margin-bottom:12px">
+        <div class="field span-2">
+          <label>Wallet Address</label>
+          <input type="text" id="br-wallet" placeholder="0x...">
+        </div>
+        <div class="field">
+          <label>Board URI</label>
+          <input type="text" id="br-board" placeholder="ca-ab">
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select id="br-role">
+            <option value="mod">Mod</option>
+            <option value="janitor">Janitor</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="assignBoardRole()">Assign Board Role</button>
+        <span class="error-msg" id="brError"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:20px">
+    <div class="panel-header">
+      Board Role Holders
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="br-filter-board" placeholder="Filter by board URI" style="font-size:0.8rem;padding:3px 8px;width:160px" oninput="loadBoardRoles()">
+      </div>
+    </div>
+    <div id="boardRoleList"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/accounts');
+
+  async function load() {
+    const { accounts } = await api('GET', '/admin/api/accounts');
+    document.getElementById('staffCount').textContent = `(${accounts.length})`;
+    const el = document.getElementById('staffList');
+
+    if (!accounts.length) { el.innerHTML = '<div class="empty">No staff assigned yet</div>'; return; }
+
+    el.innerHTML = '<table><thead><tr><th>Tripcode</th><th>Role</th><th>Since</th><th></th></tr></thead><tbody>'
+      + accounts.map(a => `<tr>
+          <td class="mono">${a.tripcode ? '##' + esc(a.tripcode) : '—'}</td>
+          <td><span class="badge badge-${a.staffRole}">${a.staffRole}</span></td>
+          <td class="mono">${formatDate(a.createdAt)}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="revokeRole('${a._id}')">Revoke</button></td>
+        </tr>`).join('')
+      + '</tbody></table>';
+  }
+
+  async function assignRole() {
+    const wallet  = document.getElementById('sa-wallet').value.trim().toLowerCase();
+    const role    = document.getElementById('sa-role').value;
+    const errEl   = document.getElementById('saError');
+    errEl.textContent = '';
+
+    if (!wallet.startsWith('0x')) { errEl.textContent = 'Enter a valid wallet address'; return; }
+
+    try {
+      // Find or create account by wallet, then set role
+      await api('POST', '/admin/api/accounts/assign', { walletAddress: wallet, staffRole: role });
+      toast(`${role} assigned`);
+      document.getElementById('sa-wallet').value = '';
+      load();
+    } catch (e) { errEl.textContent = e.message; }
+  }
+
+  async function revokeRole(id) {
+    if (!confirm('Revoke staff role?')) return;
+    try {
+      await api('PATCH', `/admin/api/accounts/${id}/role`, { staffRole: null });
+      toast('Role revoked');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function assignBoardRole() {
+    const wallet  = document.getElementById('br-wallet').value.trim().toLowerCase();
+    const board   = document.getElementById('br-board').value.trim();
+    const role    = document.getElementById('br-role').value;
+    const errEl   = document.getElementById('brError');
+    errEl.textContent = '';
+
+    if (!wallet.startsWith('0x')) { errEl.textContent = 'Enter a valid wallet address'; return; }
+    if (!board) { errEl.textContent = 'Enter a board URI'; return; }
+
+    try {
+      await api('POST', '/admin/api/accounts/board-roles', { walletAddress: wallet, boardUri: board, role });
+      toast(`${role} assigned to /${board}/`);
+      document.getElementById('br-wallet').value = '';
+      document.getElementById('br-board').value  = '';
+      loadBoardRoles();
+    } catch (e) { errEl.textContent = e.message; }
+  }
+
+  async function loadBoardRoles() {
+    const filterBoard = document.getElementById('br-filter-board')?.value.trim() || '';
+    const url = filterBoard ? `/admin/api/accounts/board-roles?boardUri=${encodeURIComponent(filterBoard)}` : '/admin/api/accounts/board-roles';
+    try {
+      const { accounts } = await api('GET', url);
+      const el = document.getElementById('boardRoleList');
+      if (!accounts.length) { el.innerHTML = '<div class="empty">No board roles assigned</div>'; return; }
+
+      let html = '<table><thead><tr><th>Tripcode</th><th>Board URI</th><th>Role</th><th></th></tr></thead><tbody>';
+      for (const a of accounts) {
+        for (const br of a.boardRoles) {
+          if (filterBoard && br.boardUri !== filterBoard) continue;
+          html += `<tr>
+            <td class="mono">${a.tripcode ? '##' + esc(a.tripcode) : '—'}</td>
+            <td><span class="board-uri">/${esc(br.boardUri)}/</span></td>
+            <td><span class="badge badge-${br.role}">${br.role}</span></td>
+            <td><button class="btn btn-danger btn-sm" onclick="revokeBoardRole('${esc(a.walletAddress || '')}','${esc(br.boardUri)}')">Revoke</button></td>
+          </tr>`;
+        }
+      }
+      html += '</tbody></table>';
+      el.innerHTML = html;
+    } catch (e) {
+      document.getElementById('boardRoleList').innerHTML = `<div class="empty" style="color:#e55">${esc(e.message)}</div>`;
+    }
+  }
+
+  async function revokeBoardRole(walletAddress, boardUri) {
+    if (!confirm(`Revoke board role for /${boardUri}/?`)) return;
+    try {
+      await api('DELETE', '/admin/api/accounts/board-roles', { walletAddress, boardUri });
+      toast('Board role revoked');
+      loadBoardRoles();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  load();
+  loadBoardRoles();
+</script>
+</body>
+</html>

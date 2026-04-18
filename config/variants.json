@@ -1,0 +1,31 @@
+{
+  "1": [
+    { "label": "Politely Radicalized",         "color": "#ffffff", "bgColor": "#8B0000" },
+    { "label": "WEF Plant",                    "color": "#e8ffe8", "bgColor": "#1a472a" },
+    { "label": "\"SOURCE?!?!\" Guy",           "color": "#ff6b35", "bgColor": "#1a1a2e" },
+    { "label": "Aspiring Corrupt Politician",  "color": "#ffd700", "bgColor": "#0d0d0d" },
+    { "label": "/pol/ Refugee (Undocumented)", "color": "#78d97f", "bgColor": "#1c2e1c" },
+    { "label": "IRGC Diversity Officer",       "color": "#ffffff", "bgColor": "#239f40" },
+    { "label": "Amateur Propagandist",         "color": "#ff4444", "bgColor": "#1a1a1a" }
+  ],
+  "2": [
+    { "label": "Frequency Researcher",       "color": "#d4b8ff", "bgColor": "#1e0a3c" },
+    { "label": "Bohemian Grove Cameraman",   "color": "#a8d5a2", "bgColor": "#0d1f0d" },
+    { "label": "Hollow Earth Geologist",     "color": "#c8a96e", "bgColor": "#2c1810" },
+    { "label": "Flat Earth Cartographer",    "color": "#87ceeb", "bgColor": "#0a1628" },
+    { "label": "Klaus Schwab Apprentice",    "color": "#c0c0c0", "bgColor": "#0d1b2a" },
+    { "label": "Registered Jenkem Reseller", "color": "#c8b560", "bgColor": "#1a1500" },
+    { "label": "Bigfoot Correspondent",      "color": "#b08060", "bgColor": "#1c1208" },
+    { "label": "Denver Airport Muralist",    "color": "#ff9aaf", "bgColor": "#1a0a14" },
+    { "label": "Crop Circle Analyst",        "color": "#98ff98", "bgColor": "#0a1a0a" }
+  ],
+  "3": [
+    { "label": "Agarthan Immigration Officer",     "color": "#ffd700", "bgColor": "#0d001a" },
+    { "label": "Hyperborean Bloodline Enthusiast", "color": "#88aaff", "bgColor": "#000d1a" },
+    { "label": "Blood Memory Archivist",           "color": "#ff2222", "bgColor": "#0d0000" },
+    { "label": "Cubic Time Researcher",            "color": "#00ffff", "bgColor": "#001a1a" },
+    { "label": "Black Mesa Security Guard",        "color": "#ff6600", "bgColor": "#0a0a0a" },
+    { "label": "HolyC Developer",                  "color": "#ffe666", "bgColor": "#1a0a00" },
+    { "label": "MOSSAD Agent",                     "color": "#ffffff", "bgColor": "#002868" }
+  ]
+}

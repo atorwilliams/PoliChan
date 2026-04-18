@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verified Politicians — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .setup-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .setup-box h3 { margin: 0 0 8px; font-size: .95rem; }
+    .setup-box p  { margin: 0 0 10px; font-size: .82rem; color: var(--muted); line-height: 1.6; }
+    .chain-status {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .82rem; margin-bottom: 16px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex-shrink: 0; }
+    .dot.green  { background: #22c55e; }
+    .dot.yellow { background: #eab308; }
+    .dot.red    { background: #ef4444; }
+    .token-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .token-card.expired { opacity: .5; }
+    .token-label {
+      font-weight: 600;
+      font-size: .9rem;
+      margin-bottom: 4px;
+    }
+    .token-meta { font-size: .78rem; color: var(--muted); }
+    .token-addr { font-family: monospace; font-size: .75rem; color: var(--muted); margin-top: 2px; }
+    .token-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+    .expires-soon { color: #eab308; }
+    .label-templates {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+    }
+    .label-template {
+      background: var(--faint); border: 1px solid var(--border2);
+      border-radius: 4px; padding: 3px 8px; font-size: .75rem;
+      cursor: pointer; color: var(--muted);
+    }
+    .label-template:hover { color: #fff; border-color: var(--blue); }
+    .section-note {
+      font-size: .78rem; color: var(--muted); margin-bottom: 16px; line-height: 1.6;
+    }
+    code.inline {
+      background: var(--faint); padding: 1px 5px; border-radius: 3px;
+      font-size: .75rem; color: #cdd;
+    }
+  </style>
+</head>
+<body>
+  <div id="admin-nav"></div>
+
+  <div class="admin-wrap">
+    <h2>Verified Politicians</h2>
+
+    <p class="section-note">
+      Each verified politician is issued a non-transferable Soulbound Token on-chain.
+      The token holds their display label (shown on all their posts) and an expiry date
+      matching their term end. You can burn any token instantly if they are ousted or resign.
+      All transactions are signed by your MetaMask wallet — the server never holds a private key.
+    </p>
+
+    <!-- Step 1: Contract setup -->
+    <div class="setup-box" id="setup-box">
+      <h3>Contract address</h3>
+      <p>
+        Deploy <code class="inline">contracts/PoliticianSBT.sol</code> via
+        <a href="https://remix.ethereum.org" target="_blank" style="color:var(--blue)">Remix</a>
+        from your admin wallet, then paste the deployed address here.
+        Once saved it persists in your browser for this session.
+      </p>
+      <div style="display:flex;gap:8px">
+        <input id="contract-addr-input" placeholder="0x…" style="flex:1;background:#111;color:#eee;border:1px solid var(--border2);border-radius:4px;padding:6px 10px;font-family:monospace;font-size:.83rem">
+        <select id="contract-chain" style="background:#111;color:#eee;border:1px solid var(--border2);border-radius:4px;padding:6px 10px;font-size:.83rem">
+          <option value="1">Ethereum</option>
+          <option value="137">Polygon</option>
+          <option value="8453">Base</option>
+        </select>
+        <button class="btn" onclick="saveContract()">Connect</button>
+      </div>
+    </div>
+
+    <!-- Chain status -->
+    <div class="chain-status">
+      <span class="dot" id="wallet-dot"></span>
+      <span id="wallet-status">MetaMask not connected</span>
+      &nbsp;·&nbsp;
+      <span class="dot" id="contract-dot"></span>
+      <span id="contract-status">No contract connected</span>
+    </div>
+
+    <!-- Active tokens -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">Active tokens</h3>
+      <button class="btn" id="mint-btn" onclick="openMint()" disabled>+ Issue Token</button>
+    </div>
+    <div id="tokens-list">
+      <p style="color:var(--muted);font-size:.85rem">Connect a contract to load tokens.</p>
+    </div>
+  </div>
+
+  <!-- Mint modal -->
+  <div id="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:24px;width:520px;max-height:90vh;overflow-y:auto">
+      <h3 id="modal-title" style="margin:0 0 16px">Issue Verified Token</h3>
+
+      <form id="mint-form" onsubmit="submitMint(event)">
+        <div class="field-row">
+          <label>Politician's wallet address</label>
+          <input id="m-wallet" placeholder="0x…" required autocomplete="off" spellcheck="false" style="font-family:monospace">
+        </div>
+
+        <div class="field-row">
+          <label>Display label <span class="dim">(shown on every post they make)</span></label>
+          <input id="m-label" placeholder='✓ MLA — Jane Doe (Banff-Kananaskis)' required>
+          <div class="label-templates">
+            <span class="label-template" onclick="setTemplate('mla')">MLA</span>
+            <span class="label-template" onclick="setTemplate('mp')">MP</span>
+            <span class="label-template" onclick="setTemplate('senator')">Senator</span>
+            <span class="label-template" onclick="setTemplate('mayor')">Mayor</span>
+            <span class="label-template" onclick="setTemplate('councillor')">Councillor</span>
+            <span class="label-template" onclick="setTemplate('pm')">Prime Minister</span>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <label>Name</label>
+          <input id="m-name" placeholder="Jane Doe" oninput="updateLabel()">
+        </div>
+
+        <div class="field-row">
+          <label>Riding / Constituency <span class="dim">(optional)</span></label>
+          <input id="m-riding" placeholder="Banff-Kananaskis" oninput="updateLabel()">
+        </div>
+
+        <div class="field-row">
+          <label>Term ends <span class="dim">(leave blank for no expiry)</span></label>
+          <input id="m-expiry" type="date">
+        </div>
+
+        <div id="label-preview" style="margin:10px 0;padding:8px 12px;background:var(--faint);border-radius:4px;font-size:.83rem;display:none">
+          <span style="color:var(--muted)">Preview: </span>
+          <span class="post-flair" id="label-preview-badge" style="background:#1e3a5f;color:#93c5fd"></span>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn" id="m-submit">Sign &amp; Issue</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Burn modal -->
+  <div id="burn-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:24px;width:440px">
+      <h3 style="margin:0 0 12px;color:#f87171">Burn Token</h3>
+      <p style="font-size:.85rem;color:var(--muted);margin:0 0 12px">
+        This permanently revokes <strong id="burn-label"></strong>'s verified status.
+        Their flair will be removed on next login.
+      </p>
+      <div class="field-row">
+        <label>Reason <span class="dim">(stored in the contract event log)</span></label>
+        <input id="burn-reason" placeholder='e.g. "lost seat", "resigned", "expelled"'>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <button type="button" class="btn btn-ghost" onclick="closeBurnModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmBurn()">Sign &amp; Burn</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/.static/js/admin-common.js"></script>
+  <script>
+    adminNav('/admin/verified');
+
+    // ── State ──────────────────────────────────────────────────────────────────
+
+    let provider   = null;
+    let signer     = null;
+    let contract   = null;
+    let walletAddr = null;
+    let tokens     = [];   // reconstructed from events
+    let burnTarget = null; // { tokenId, label }
+    let activeTitle = 'MLA';
+
+    const CONTRACT_ABI = [
+      'event Minted(address indexed holder, uint256 indexed tokenId, string label, uint256 expiresAt)',
+      'event Burned(uint256 indexed tokenId, address indexed holder, string reason)',
+      'function mint(address holder, string label, uint256 expiresAt) returns (uint256)',
+      'function burn(uint256 tokenId, string reason)',
+      'function tokenById(uint256 tokenId) view returns (address holder, string label, uint256 expiresAt, bool exists)',
+      'function owner() view returns (address)'
+    ];
+
+    // ── Contract connection ───────────────────────────────────────────────────
+
+    async function saveContract() {
+      const addr    = document.getElementById('contract-addr-input').value.trim();
+      const chainId = parseInt(document.getElementById('contract-chain').value);
+      if (!addr || !addr.startsWith('0x')) { toast('Enter a valid 0x… address', true); return; }
+
+      // Connect wallet
+      if (!window.ethereum) { toast('MetaMask not found', true); return; }
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        walletAddr = accounts[0];
+
+        // Switch chain if needed
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x' + chainId.toString(16) }]
+        }).catch(() => {}); // ignore if already on chain
+
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer   = await provider.getSigner();
+        contract = new ethers.Contract(addr, CONTRACT_ABI, signer);
+
+        // Verify it's a PoliticianSBT (check owner() exists)
+        const contractOwner = await contract.owner();
+        if (contractOwner.toLowerCase() !== walletAddr.toLowerCase()) {
+          toast(`Warning: your wallet is not the contract owner (owner is ${contractOwner.slice(0,8)}…)`, true);
+        }
+
+        localStorage.setItem('sbt_addr', addr);
+        localStorage.setItem('sbt_chain', String(chainId));
+
+        setDot('wallet', 'green');
+        document.getElementById('wallet-status').textContent = `${walletAddr.slice(0,8)}…`;
+        setDot('contract', 'green');
+        document.getElementById('contract-status').textContent = `${addr.slice(0,8)}… on chain ${chainId}`;
+        document.getElementById('mint-btn').disabled = false;
+
+        await loadTokens();
+        toast('Contract connected');
+      } catch (err) {
+        toast(err.message, true);
+        setDot('wallet', 'red');
+      }
+    }
+
+    // ── Load tokens from event log ─────────────────────────────────────────────
+
+    async function loadTokens() {
+      if (!contract) return;
+      document.getElementById('tokens-list').innerHTML =
+        '<p style="color:var(--muted);font-size:.85rem">Loading event log…</p>';
+      try {
+        const mintFilter = contract.filters.Minted();
+        const burnFilter = contract.filters.Burned();
+        const [mintEvents, burnEvents] = await Promise.all([
+          contract.queryFilter(mintFilter, 0, 'latest'),
+          contract.queryFilter(burnFilter, 0, 'latest')
+        ]);
+
+        const burned = new Set(burnEvents.map(e => e.args.tokenId.toString()));
+
+        // For each minted token, check if still alive
+        const resolved = await Promise.all(
+          mintEvents.map(async e => {
+            const tokenId = e.args.tokenId.toString();
+            if (burned.has(tokenId)) return null; // burned
+            try {
+              const [holder, label, expiresAt, exists] = await contract.tokenById(tokenId);
+              if (!exists) return null;
+              return {
+                tokenId,
+                holder,
+                label,
+                expiresAt: Number(expiresAt),
+                mintBlock: e.blockNumber
+              };
+            } catch { return null; }
+          })
+        );
+
+        tokens = resolved.filter(Boolean);
+        renderTokens();
+      } catch (err) {
+        toast('Failed to load events: ' + err.message, true);
+        document.getElementById('tokens-list').innerHTML =
+          `<p style="color:var(--red);font-size:.85rem">Error: ${esc(err.message)}</p>`;
+      }
+    }
+
+    function renderTokens() {
+      const el  = document.getElementById('tokens-list');
+      const now = Math.floor(Date.now() / 1000);
+
+      if (!tokens.length) {
+        el.innerHTML = '<p style="color:var(--muted);font-size:.85rem">No active tokens.</p>';
+        return;
+      }
+
+      // Sort: active first, then by most recently minted
+      const sorted = [...tokens].sort((a, b) => {
+        const aExp = a.expiresAt === 0 || a.expiresAt > now;
+        const bExp = b.expiresAt === 0 || b.expiresAt > now;
+        if (aExp !== bExp) return bExp ? 1 : -1;
+        return b.mintBlock - a.mintBlock;
+      });
+
+      el.innerHTML = sorted.map(t => {
+        const expired = t.expiresAt !== 0 && t.expiresAt < now;
+        const expiresSoon = !expired && t.expiresAt !== 0 && (t.expiresAt - now) < 30 * 24 * 3600;
+
+        let expStr = '';
+        if (t.expiresAt === 0) {
+          expStr = 'No expiry';
+        } else {
+          const d = new Date(t.expiresAt * 1000).toLocaleDateString('en-CA');
+          expStr = expired
+            ? `<span style="color:var(--red)">Expired ${d}</span>`
+            : expiresSoon
+              ? `<span class="expires-soon">Expires ${d}</span>`
+              : `Expires ${d}`;
+        }
+
+        return `
+          <div class="token-card ${expired ? 'expired' : ''}">
+            <div style="flex:1">
+              <div class="token-label">
+                <span class="post-flair" style="background:#1e3a5f;color:#93c5fd">${esc(t.label)}</span>
+              </div>
+              <div class="token-addr">${esc(t.holder)}</div>
+              <div class="token-meta">Token #${t.tokenId} &nbsp;·&nbsp; ${expStr}</div>
+            </div>
+            <div class="token-actions">
+              ${expired ? '' : `<button class="btn btn-sm btn-danger" onclick="openBurn('${t.tokenId}', '${esc(t.label).replace(/'/g,"\\'")}')">Burn</button>`}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ── Mint ──────────────────────────────────────────────────────────────────
+
+    const TEMPLATES = {
+      mla:        'MLA',
+      mp:         'MP',
+      senator:    'Senator',
+      mayor:      'Mayor',
+      councillor: 'Councillor',
+      pm:         'Prime Minister'
+    };
+
+    function setTemplate(key) {
+      activeTitle = TEMPLATES[key] || key;
+      updateLabel();
+    }
+
+    function updateLabel() {
+      const name   = document.getElementById('m-name').value.trim();
+      const riding = document.getElementById('m-riding').value.trim();
+      let label = `✓ ${activeTitle}`;
+      if (name)   label += ` — ${name}`;
+      if (riding) label += ` (${riding})`;
+      document.getElementById('m-label').value = label;
+      updatePreview(label);
+    }
+
+    function updatePreview(label) {
+      label = label || document.getElementById('m-label').value;
+      const row = document.getElementById('label-preview');
+      if (label.trim()) {
+        document.getElementById('label-preview-badge').textContent = label;
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    }
+
+    function openMint() {
+      document.getElementById('modal-title').textContent = 'Issue Verified Token';
+      document.getElementById('m-wallet').value  = '';
+      document.getElementById('m-label').value   = '';
+      document.getElementById('m-name').value    = '';
+      document.getElementById('m-riding').value  = '';
+      document.getElementById('m-expiry').value  = '';
+      document.getElementById('label-preview').style.display = 'none';
+      document.getElementById('m-submit').textContent = 'Sign & Issue';
+      document.getElementById('m-submit').disabled = false;
+      document.getElementById('modal-backdrop').style.display = 'flex';
+    }
+
+    document.getElementById('m-label').addEventListener('input', e => updatePreview(e.target.value));
+
+    async function submitMint(e) {
+      e.preventDefault();
+      const wallet  = document.getElementById('m-wallet').value.trim();
+      const label   = document.getElementById('m-label').value.trim();
+      const expDate = document.getElementById('m-expiry').value;
+      const expiresAt = expDate ? Math.floor(new Date(expDate).getTime() / 1000) : 0;
+
+      if (!wallet.startsWith('0x')) { toast('Invalid wallet address', true); return; }
+
+      const btn = document.getElementById('m-submit');
+      btn.disabled = true;
+      btn.textContent = 'Waiting for signature…';
+
+      try {
+        const tx = await contract.mint(wallet, label, expiresAt);
+        btn.textContent = 'Confirming…';
+        await tx.wait();
+        toast('Token issued');
+        closeModal();
+        await loadTokens();
+      } catch (err) {
+        toast(err.shortMessage || err.message, true);
+        btn.disabled = false;
+        btn.textContent = 'Sign & Issue';
+      }
+    }
+
+    // ── Burn ──────────────────────────────────────────────────────────────────
+
+    function openBurn(tokenId, label) {
+      burnTarget = { tokenId, label };
+      document.getElementById('burn-label').textContent = label;
+      document.getElementById('burn-reason').value = '';
+      document.getElementById('burn-backdrop').style.display = 'flex';
+    }
+
+    async function confirmBurn() {
+      if (!burnTarget) return;
+      const reason = document.getElementById('burn-reason').value.trim() || 'no reason given';
+      const btn = document.querySelector('#burn-backdrop .btn-danger');
+      btn.disabled = true;
+      btn.textContent = 'Waiting for signature…';
+      try {
+        const tx = await contract.burn(burnTarget.tokenId, reason);
+        btn.textContent = 'Confirming…';
+        await tx.wait();
+        toast('Token burned');
+        closeBurnModal();
+        await loadTokens();
+      } catch (err) {
+        toast(err.shortMessage || err.message, true);
+        btn.disabled = false;
+        btn.textContent = 'Sign & Burn';
+      }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function setDot(id, color) {
+      const el = document.getElementById(`${id}-dot`);
+      el.className = `dot ${color}`;
+    }
+
+    function closeModal() {
+      document.getElementById('modal-backdrop').style.display = 'none';
+    }
+
+    function closeBurnModal() {
+      document.getElementById('burn-backdrop').style.display = 'none';
+      burnTarget = null;
+    }
+
+    document.getElementById('modal-backdrop').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+    document.getElementById('burn-backdrop').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeBurnModal();
+    });
+
+    // ── Auto-restore ──────────────────────────────────────────────────────────
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('sbt_addr');
+      const chain = localStorage.getItem('sbt_chain') || '137';
+      if (saved) {
+        document.getElementById('contract-addr-input').value = saved;
+        document.getElementById('contract-chain').value = chain;
+      }
+    });
+  </script>
+
+  <!-- ethers.js v6 (browser build) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</body>
+</html>

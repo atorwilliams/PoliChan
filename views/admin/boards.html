@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boards — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Boards</h1>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="runSeeder()">Run Seeder</button>
+      <button class="btn btn-primary" onclick="showCreateForm()">+ New Board</button>
+    </div>
+  </div>
+
+  <!-- Create / Edit form -->
+  <div class="panel" id="formPanel" style="display:none">
+    <div class="panel-header">
+      <span id="formTitle">Create Board</span>
+      <button class="btn btn-ghost btn-sm" onclick="hideForm()">Cancel</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="field">
+          <label>URI <span style="color:var(--muted);font-weight:400;text-transform:none">(e.g. ca-ab, ca-ab-yyc)</span></label>
+          <input type="text" id="f-uri" placeholder="ca-ab" pattern="[a-z0-9-]+">
+        </div>
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="f-name" placeholder="Alberta">
+        </div>
+        <div class="field span-2">
+          <label>Description</label>
+          <input type="text" id="f-desc" placeholder="Alberta provincial politics">
+        </div>
+        <div class="field">
+          <label>Parent URI <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+          <input type="text" id="f-parent" placeholder="ca">
+        </div>
+        <div class="field">
+          <label>PoliMap Key <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+          <input type="text" id="f-polimapKey" placeholder="AB">
+        </div>
+        <div class="field">
+          <label>Max Threads</label>
+          <input type="number" id="f-maxThreads" value="150" min="1">
+        </div>
+        <div class="field">
+          <label>Archive Threshold <span style="color:var(--muted);font-weight:400;text-transform:none">(min posts)</span></label>
+          <input type="number" id="f-archiveThreshold" value="10" min="1">
+        </div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:8px;padding-top:18px">
+          <input type="checkbox" id="f-listed" checked style="width:auto">
+          <label for="f-listed" style="text-transform:none;font-size:0.82rem;cursor:pointer">Listed (visible on index)</label>
+        </div>
+        <div class="field span-2">
+          <label>Region Lock <span style="color:var(--muted);font-weight:400;text-transform:none">(comma-separated ISO codes, e.g. CA,US — empty = no restriction)</span></label>
+          <input type="text" id="f-allowedCountries" placeholder="CA,US">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="submitForm()">Save</button>
+        <span class="error-msg" id="formError"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Board list -->
+  <div class="panel">
+    <div class="panel-header">All Boards <span id="boardCount" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="boardList"><div class="empty">Loading…</div></div>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/boards');
+
+  let boards = [];
+  let editingUri = null;
+
+  async function load() {
+    const data = await api('GET', '/admin/api/boards');
+    boards = data.boards;
+    document.getElementById('boardCount').textContent = `(${boards.length})`;
+    renderList();
+  }
+
+  function renderList() {
+    const el = document.getElementById('boardList');
+    if (!boards.length) { el.innerHTML = '<div class="empty">No boards yet. Create one or run the seeder.</div>'; return; }
+
+    // Group: top-level first, then children indented
+    const top      = boards.filter(b => !b.parentUri || !boards.find(p => p.uri === b.parentUri));
+    const children = boards.filter(b =>  b.parentUri &&  boards.find(p => p.uri === b.parentUri));
+
+    let html = '<table><thead><tr><th>URI</th><th>Name</th><th>Description</th><th>Threads</th><th>Posts</th><th>Listed</th><th>Region Lock</th><th></th></tr></thead><tbody>';
+
+    function row(b, indent) {
+      return `<tr>
+        <td class="${indent ? 'indent' : ''}"><span class="board-uri">/${esc(b.uri)}/</span></td>
+        <td>${esc(b.name)}</td>
+        <td style="color:var(--muted)">${esc(b.description || '—')}</td>
+        <td>${b.threadCount || 0}</td>
+        <td>${b.postCount  || 0}</td>
+        <td>${b.isListed ? '✓' : '<span style="color:var(--muted)">—</span>'}</td>
+        <td style="font-size:0.75rem;color:var(--muted)">${b.allowedCountries?.length ? esc(b.allowedCountries.join(', ')) : '—'}</td>
+        <td style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="editBoard('${b.uri}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteBoard('${b.uri}')">Delete</button>
+        </td>
+      </tr>`;
+    }
+
+    for (const b of top) {
+      html += row(b, false);
+      for (const c of children.filter(c => c.parentUri === b.uri)) html += row(c, true);
+    }
+
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function showCreateForm() {
+    editingUri = null;
+    document.getElementById('formTitle').textContent = 'Create Board';
+    ['uri','name','desc','parent','polimapKey','allowedCountries'].forEach(id => document.getElementById('f-'+id).value = '');
+    document.getElementById('f-maxThreads').value = 150;
+    document.getElementById('f-archiveThreshold').value = 10;
+    document.getElementById('f-listed').checked = true;
+    document.getElementById('f-uri').disabled = false;
+    document.getElementById('formError').textContent = '';
+    const p = document.getElementById('formPanel');
+    p.style.display = 'block';
+    p.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function editBoard(uri) {
+    const b = boards.find(b => b.uri === uri);
+    if (!b) return;
+    editingUri = uri;
+    document.getElementById('formTitle').textContent = `Edit /${uri}/`;
+    document.getElementById('f-uri').value = b.uri;
+    document.getElementById('f-uri').disabled = true;
+    document.getElementById('f-name').value = b.name;
+    document.getElementById('f-desc').value = b.description || '';
+    document.getElementById('f-parent').value = b.parentUri || '';
+    document.getElementById('f-polimapKey').value = b.polimapKey || '';
+    document.getElementById('f-maxThreads').value = b.settings?.maxThreads || 150;
+    document.getElementById('f-archiveThreshold').value = b.settings?.archiveThreshold || 10;
+    document.getElementById('f-listed').checked = b.isListed !== false;
+    document.getElementById('f-allowedCountries').value = (b.allowedCountries || []).join(',');
+    document.getElementById('formError').textContent = '';
+    const p = document.getElementById('formPanel');
+    p.style.display = 'block';
+    p.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function hideForm() {
+    document.getElementById('formPanel').style.display = 'none';
+    editingUri = null;
+  }
+
+  async function submitForm() {
+    const errEl = document.getElementById('formError');
+    errEl.textContent = '';
+
+    const allowedRaw = document.getElementById('f-allowedCountries').value.trim();
+    const body = {
+      uri:              document.getElementById('f-uri').value.trim(),
+      name:             document.getElementById('f-name').value.trim(),
+      description:      document.getElementById('f-desc').value.trim(),
+      parentUri:        document.getElementById('f-parent').value.trim() || null,
+      polimapKey:       document.getElementById('f-polimapKey').value.trim() || null,
+      maxThreads:       parseInt(document.getElementById('f-maxThreads').value),
+      archiveThreshold: parseInt(document.getElementById('f-archiveThreshold').value),
+      isListed:         document.getElementById('f-listed').checked,
+      allowedCountries: allowedRaw ? allowedRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : []
+    };
+
+    if (!body.name) { errEl.textContent = 'Name is required'; return; }
+
+    try {
+      if (editingUri) {
+        await api('PATCH', `/admin/api/boards/${editingUri}`, body);
+        toast('Board updated');
+      } else {
+        if (!body.uri) { errEl.textContent = 'URI is required'; return; }
+        await api('POST', '/admin/api/boards', body);
+        toast('Board created');
+      }
+      hideForm();
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  }
+
+  async function deleteBoard(uri) {
+    if (!confirm(`Delete /${uri}/? This cannot be undone.`)) return;
+    try {
+      await api('DELETE', `/admin/api/boards/${uri}`);
+      toast('Board deleted');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function runSeeder() {
+    try {
+      const res = await api('POST', '/admin/api/seeder/run');
+      toast(`Seeder done — ${res.created} board(s) created`);
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Filter — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .filter-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .filter-note code {
+      background: var(--faint);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.78rem;
+      color: #cdd;
+    }
+    #search-box {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: #eee;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 0.83rem;
+      width: 240px;
+    }
+    #search-box:focus { outline: none; border-color: var(--blue); }
+    .rule-row { border-top: 1px solid #1e1e30; }
+    .rule-row td { padding: 7px 10px; font-size: 0.83rem; vertical-align: middle; }
+    .rule-word { font-family: monospace; color: #f87171; }
+    .rule-arrow { color: var(--muted); padding: 0 4px; }
+    .rule-replacement { font-family: monospace; color: #86efac; }
+    .inactive-row { opacity: 0.45; }
+  </style>
+</head>
+<body>
+  <div id="admin-nav"></div>
+
+  <div class="admin-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h2 style="margin:0">Word Filter</h2>
+      <button class="btn" onclick="openCreate()">+ Add Rule</button>
+    </div>
+
+    <div class="filter-note">
+      Substitutions are applied to post bodies before markup rendering. Matching is
+      <strong>case-insensitive</strong> and whole-word only (word boundaries). The replacement
+      string is displayed as-is — you can use this for humorous substitutions (classic
+      4chan style) or to scrub slurs. Inactive rules are stored but not applied.
+      <br><br>
+      <strong>Examples:</strong>
+      <code>trudeau</code> → <code>the drama teacher</code> &nbsp;&nbsp;
+      <code>poilievre</code> → <code>Poily</code>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <input id="search-box" placeholder="Filter rules…" oninput="renderTable()">
+      <span id="rule-count" style="font-size:.8rem;color:var(--muted)"></span>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">
+          <th style="text-align:left;padding:4px 10px">Word / Pattern</th>
+          <th style="text-align:left;padding:4px 10px">Replacement</th>
+          <th style="text-align:left;padding:4px 10px">Active</th>
+          <th style="padding:4px 10px"></th>
+        </tr>
+      </thead>
+      <tbody id="rules-body">
+        <tr><td colspan="4" style="padding:14px 10px;color:var(--muted)">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Create / Edit modal -->
+  <div id="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:24px;width:440px">
+      <h3 id="modal-title" style="margin:0 0 16px">New Word Filter Rule</h3>
+
+      <form id="rule-form" onsubmit="submitRule(event)">
+        <input type="hidden" id="r-id">
+
+        <div class="field-row">
+          <label>Word / phrase to match</label>
+          <input id="r-word" required placeholder="e.g. trudeau" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="field-row">
+          <label>Replace with</label>
+          <input id="r-replacement" required placeholder="e.g. the drama teacher" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="field-row" style="padding-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="r-active" checked style="width:auto">
+            Active (apply this substitution)
+          </label>
+        </div>
+
+        <div id="preview-row" style="margin:12px 0;padding:10px;background:var(--faint);border-radius:4px;font-size:.82rem;display:none">
+          <span style="color:var(--muted)">Preview:</span>
+          <span class="rule-word" id="prev-word"></span>
+          <span class="rule-arrow">→</span>
+          <span class="rule-replacement" id="prev-repl"></span>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn" id="r-submit">Add Rule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/.static/js/admin-common.js"></script>
+  <script>
+    adminNav('/admin/wordfilter');
+
+    let rules = [];
+
+    async function load() {
+      const data = await api('GET', '/admin/api/wordfilter').catch(err => { toast(err.message, true); return null; });
+      if (!data) return;
+      rules = data.rules;
+      renderTable();
+    }
+
+    function renderTable() {
+      const q     = document.getElementById('search-box').value.toLowerCase();
+      const tbody = document.getElementById('rules-body');
+      const visible = q
+        ? rules.filter(r => r.word.toLowerCase().includes(q) || r.replacement.toLowerCase().includes(q))
+        : rules;
+
+      document.getElementById('rule-count').textContent =
+        `${visible.length} of ${rules.length} rule${rules.length !== 1 ? 's' : ''}`;
+
+      if (!rules.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:14px 10px;color:var(--muted)">No rules yet.</td></tr>';
+        return;
+      }
+      if (!visible.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:14px 10px;color:var(--muted)">No matching rules.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = visible.map(r => `
+        <tr class="rule-row ${r.isActive ? '' : 'inactive-row'}">
+          <td><span class="rule-word">${esc(r.word)}</span></td>
+          <td><span class="rule-replacement">${esc(r.replacement)}</span></td>
+          <td>
+            <button class="btn btn-sm btn-ghost" onclick="toggleActive('${r._id}', ${!r.isActive})">
+              ${r.isActive ? 'Disable' : 'Enable'}
+            </button>
+          </td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm" onclick='openEdit(${JSON.stringify(r)})'>Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteRule('${r._id}', '${esc(r.word)}')">Del</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openCreate() {
+      document.getElementById('modal-title').textContent = 'New Word Filter Rule';
+      document.getElementById('r-submit').textContent = 'Add Rule';
+      document.getElementById('r-id').value = '';
+      document.getElementById('r-word').value = '';
+      document.getElementById('r-replacement').value = '';
+      document.getElementById('r-active').checked = true;
+      document.getElementById('preview-row').style.display = 'none';
+      showModal();
+    }
+
+    function openEdit(r) {
+      document.getElementById('modal-title').textContent = 'Edit Rule';
+      document.getElementById('r-submit').textContent = 'Save Changes';
+      document.getElementById('r-id').value = r._id;
+      document.getElementById('r-word').value = r.word;
+      document.getElementById('r-replacement').value = r.replacement;
+      document.getElementById('r-active').checked = r.isActive;
+      updatePreview();
+      showModal();
+    }
+
+    function updatePreview() {
+      const word = document.getElementById('r-word').value.trim();
+      const repl = document.getElementById('r-replacement').value;
+      const row  = document.getElementById('preview-row');
+      if (word && repl !== '') {
+        document.getElementById('prev-word').textContent = word;
+        document.getElementById('prev-repl').textContent = repl || '(blank — word removed)';
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    }
+
+    document.getElementById('r-word').addEventListener('input', updatePreview);
+    document.getElementById('r-replacement').addEventListener('input', updatePreview);
+
+    async function submitRule(e) {
+      e.preventDefault();
+      const id          = document.getElementById('r-id').value;
+      const word        = document.getElementById('r-word').value.trim();
+      const replacement = document.getElementById('r-replacement').value;
+      const isActive    = document.getElementById('r-active').checked;
+
+      try {
+        if (id) {
+          await api('PATCH', `/admin/api/wordfilter/${id}`, { word, replacement, isActive });
+          toast('Rule updated');
+        } else {
+          await api('POST', '/admin/api/wordfilter', { word, replacement, isActive });
+          toast('Rule added');
+        }
+        closeModal();
+        load();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }
+
+    async function toggleActive(id, newState) {
+      try {
+        await api('PATCH', `/admin/api/wordfilter/${id}`, { isActive: newState });
+        toast(newState ? 'Rule enabled' : 'Rule disabled');
+        load();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }
+
+    async function deleteRule(id, word) {
+      if (!confirm(`Delete filter rule for "${word}"?`)) return;
+      try {
+        await api('DELETE', `/admin/api/wordfilter/${id}`);
+        toast('Rule deleted');
+        load();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }
+
+    function showModal() {
+      document.getElementById('modal-backdrop').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal-backdrop').style.display = 'none';
+    }
+
+    document.getElementById('modal-backdrop').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    load();
+  </script>
+</body>
+</html>
