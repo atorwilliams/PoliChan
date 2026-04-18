@@ -7,13 +7,16 @@ const sharp  = require('sharp');
 const ffmpeg = require('fluent-ffmpeg');
 const config = require('../config');
 
-// Point fluent-ffmpeg at the local ffmpeg binary
-const FFMPEG_DIR = path.join(
-  'C:', 'Users', 'justt', 'Documents',
-  'ffmpeg-7.1.1-essentials_build', 'bin'
-);
-ffmpeg.setFfmpegPath(path.join(FFMPEG_DIR, 'ffmpeg.exe'));
-ffmpeg.setFfprobePath(path.join(FFMPEG_DIR, 'ffprobe.exe'));
+// Point fluent-ffmpeg at the correct binary for the current platform
+if (process.platform === 'win32') {
+  const FFMPEG_DIR = path.join(
+    'C:', 'Users', 'justt', 'Documents',
+    'ffmpeg-7.1.1-essentials_build', 'bin'
+  );
+  ffmpeg.setFfmpegPath(path.join(FFMPEG_DIR, 'ffmpeg.exe'));
+  ffmpeg.setFfprobePath(path.join(FFMPEG_DIR, 'ffprobe.exe'));
+}
+// On Linux, fluent-ffmpeg will find ffmpeg/ffprobe from PATH automatically
 
 const UPLOADS_ROOT  = path.join(__dirname, '../public/uploads');
 const THUMB_SIZE    = 250;   // max px for either dimension
