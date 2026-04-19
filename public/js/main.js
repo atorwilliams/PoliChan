@@ -403,7 +403,7 @@ async function loadAds(uri) {
 
   const sidebarSlot = document.getElementById('sp-side');
   if (sidebarSlot) {
-    if (isMember) { sidebarSlot.style.display = 'none'; return; }
+    if (isMember || window.innerWidth <= 900) { sidebarSlot.style.display = 'none'; return; }
     try {
       const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
       if (ad) {
