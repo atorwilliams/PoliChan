@@ -66,9 +66,21 @@ app.use('/manage',      require('./routes/manage'));
 // NFT metadata + images
 app.use('/pass', require('./routes/nft'));
 
+// Public constitution API
+app.get('/api/constitution', async (_req, res) => {
+  try {
+    const SiteConfig = require('./models/SiteConfig');
+    const doc = await SiteConfig.findOne({ key: 'constitution' }).lean();
+    res.json({ text: doc?.value || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Static pages — must be before the catch-all
-app.get('/pass', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'pass.html')));
-app.get('/wall', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));
+app.get('/pass',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'pass.html')));
+app.get('/wall',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));
+app.get('/constitution', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'constitution.html')));
 
 // Serve the shell HTML for all non-API, non-admin routes (client JS takes over)
 app.get('*', (req, res) => {

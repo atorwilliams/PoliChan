@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Constitution — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Constitution</h1>
+    <button class="btn btn-primary" onclick="save()">Save</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-body">
+      <p style="color:var(--muted);font-size:0.83rem;margin-bottom:14px;line-height:1.6">
+        Free-form text displayed publicly at <strong>/constitution</strong>. Whitespace and line breaks are preserved as written.
+      </p>
+      <textarea id="constitution-text" style="width:100%;height:520px;font-family:monospace;font-size:0.85rem;background:var(--input-bg);color:var(--text);border:1px solid var(--border);padding:12px;resize:vertical;line-height:1.7" placeholder="Write the rules here…"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+        <button class="btn btn-primary" onclick="save()">Save</button>
+        <span id="save-status" style="font-size:0.83rem;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/constitution');
+
+  async function load() {
+    const data = await api('GET', '/admin/api/constitution');
+    document.getElementById('constitution-text').value = data.text || '';
+  }
+
+  async function save() {
+    const text   = document.getElementById('constitution-text').value;
+    const status = document.getElementById('save-status');
+    try {
+      await api('PATCH', '/admin/api/constitution', { text });
+      toast('Saved');
+      status.textContent = 'Saved.';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

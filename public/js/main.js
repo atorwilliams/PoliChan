@@ -171,6 +171,7 @@ function renderNav(activePath) {
       <a href="/" data-nav ${activePath === '/' ? 'class="active"' : ''}>Boards</a>
       <a href="/pass" ${activePath === '/pass' ? 'class="active"' : ''}>PoliPass</a>
       <a href="/wall" ${activePath === '/wall' ? 'class="active"' : ''}>Wall</a>
+      <a href="/constitution" ${activePath === '/constitution' ? 'class="active"' : ''}>Constitution</a>
     </div>
     <div class="nav-right">
       ${tierBadge}

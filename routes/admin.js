@@ -11,6 +11,7 @@ const Report   = require('../models/Report');
 const Account  = require('../models/Account');
 const FlairRule  = require('../models/FlairRule');
 const WordFilter = require('../models/WordFilter');
+const SiteConfig = require('../models/SiteConfig');
 const markup     = require('../services/markup');
 const { requireAdmin, issueToken } = require('../middleware/auth');
 const config   = require('../config');
@@ -93,7 +94,8 @@ router.get('/flairs',      view('flairs'));
 router.get('/polls',       view('polls'));
 router.get('/wordfilter',  view('wordfilter'));
 router.get('/verified',    view('verified'));
-router.get('/danger',      view('danger'));
+router.get('/danger',        view('danger'));
+router.get('/constitution',  view('constitution'));
 
 // ── Boards ────────────────────────────────────────────────────────────────────
 
@@ -669,6 +671,31 @@ router.post('/api/wipe', async (req, res) => {
     fs.mkdirSync(uploadsDir, { recursive: true });
 
     console.warn(`[WIPE] Forum wiped by admin at ${new Date().toISOString()}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Constitution ──────────────────────────────────────────────────────────────
+
+router.get('/api/constitution', requireAdmin, async (req, res) => {
+  try {
+    const doc = await SiteConfig.findOne({ key: 'constitution' }).lean();
+    res.json({ text: doc?.value || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/constitution', requireAdmin, async (req, res) => {
+  try {
+    const text = typeof req.body.text === 'string' ? req.body.text : '';
+    await SiteConfig.findOneAndUpdate(
+      { key: 'constitution' },
+      { value: text },
+      { upsert: true }
+    );
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

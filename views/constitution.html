@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Constitution — PoliChan</title>
+  <link rel="stylesheet" href="/.static/css/main.css">
+  <style>
+    #constitution-page {
+      max-width: 860px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+
+    #constitution-page h1 {
+      font-size: 1.4rem;
+      color: var(--subject);
+      margin-bottom: 4px;
+    }
+
+    #constitution-page .subtitle {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 24px;
+    }
+
+    #constitution-body {
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      padding: 24px;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 200px;
+      color: var(--text);
+    }
+
+    #constitution-body.loading {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<div id="nav">
+  <a class="brand" href="/">Poli<span>Chan</span></a>
+  <div class="nav-links">
+    <a href="/">Boards</a>
+    <a href="/pass">PoliPass</a>
+    <a href="/wall">Wall</a>
+    <a href="/constitution" style="color:#fff;font-weight:bold">Constitution</a>
+  </div>
+  <div class="nav-right">
+    <button id="walletBtn">Connect Wallet</button>
+  </div>
+</div>
+
+<div id="constitution-page">
+  <h1>Constitution</h1>
+  <p class="subtitle">The rules of PoliChan. Subject to change as the site evolves.</p>
+  <div id="constitution-body" class="loading">Loading…</div>
+</div>
+
+<script>
+  fetch('/api/constitution')
+    .then(r => r.json())
+    .then(data => {
+      const el = document.getElementById('constitution-body');
+      el.classList.remove('loading');
+      el.textContent = data.text || 'No constitution has been written yet.';
+    })
+    .catch(() => {
+      document.getElementById('constitution-body').textContent = 'Failed to load.';
+    });
+</script>
+</body>
+</html>
