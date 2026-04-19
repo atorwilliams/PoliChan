@@ -359,7 +359,7 @@ async function loadAds(uri) {
   const isMember = (state.session?.poliPassTier || 0) >= 2;
   const noAdMsg = `<div style="font-size:0.78rem;color:var(--muted);font-style:italic;text-align:center">No ads :)<br>Thanks for supporting PoliChan</div>`;
 
-  for (const elId of ['ad-left', 'ad-right']) {
+  for (const elId of ['sp-left', 'sp-right']) {
     const slot = document.getElementById(elId);
     if (!slot) continue;
     if (isMember) { slot.innerHTML = noAdMsg; continue; }
@@ -372,7 +372,7 @@ async function loadAds(uri) {
     } catch (_) {}
   }
 
-  const footerSlot = document.getElementById('ad-footer');
+  const footerSlot = document.getElementById('sp-foot');
   if (footerSlot) {
     if (!isMember) {
       try {
@@ -390,7 +390,7 @@ async function loadAds(uri) {
     }
   }
 
-  const sidebarSlot = document.getElementById('ad-sidebar');
+  const sidebarSlot = document.getElementById('sp-side');
   if (sidebarSlot) {
     if (isMember) { sidebarSlot.style.display = 'none'; return; }
     try {
@@ -484,7 +484,7 @@ async function loadBoard(uri) {
 
       <div class="board-header">
         <div class="board-header-top">
-          <div id="ad-left" style="display:flex;flex-direction:column;align-items:center;justify-content:center"></div>
+          <div id="sp-left" style="display:flex;flex-direction:column;align-items:center;justify-content:center"></div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center">
             <div id="banner-global" style="display:none">
               <img src="" alt="banner" style="width:300px;height:100px;object-fit:contain">
@@ -493,7 +493,7 @@ async function loadBoard(uri) {
             <h1>${esc(board.name)}</h1>
             ${board.description ? `<div class="board-desc">${esc(board.description)}</div>` : ''}
           </div>
-          <div id="ad-right" style="display:flex;flex-direction:column;align-items:center;justify-content:center"></div>
+          <div id="sp-right" style="display:flex;flex-direction:column;align-items:center;justify-content:center"></div>
         </div>
         <div class="board-actions">
           ${board.rules ? `[<a href="#" onclick="toggleBoardRules();return false">Rules</a>]` : ''}
@@ -519,17 +519,17 @@ async function loadBoard(uri) {
 
       <div id="board-content"></div>
 
-      <div id="ad-sidebar" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:1000;flex-direction:column;align-items:center;gap:4px;width:160px">
+      <div id="sp-side" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:1000;flex-direction:column;align-items:center;gap:4px;width:160px">
         <div style="font-size:0.68rem;color:var(--muted)">Sponsored</div>
-        <a id="ad-sidebar-link" href="#" target="_blank" rel="noopener noreferrer">
-          <img id="ad-sidebar-img" src="" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
+        <a id="sp-side-link" href="#" target="_blank" rel="noopener noreferrer">
+          <img id="sp-side-img" src="" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
         </a>
       </div>
 
-      <div id="ad-footer" style="display:none;margin:16px 0;width:100vw;margin-left:-24px;text-align:center">
+      <div id="sp-foot" style="display:none;margin:16px 0;width:100vw;margin-left:-24px;text-align:center">
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
-        <a id="ad-footer-link" href="#" target="_blank" rel="noopener noreferrer">
-          <img id="ad-footer-img" src="" alt="ad" style="width:300px;height:250px;object-fit:contain;max-width:100%">
+        <a id="sp-foot-link" href="#" target="_blank" rel="noopener noreferrer">
+          <img id="sp-foot-img" src="" alt="ad" style="width:300px;height:250px;object-fit:contain;max-width:100%">
         </a>
       </div>`;
 
