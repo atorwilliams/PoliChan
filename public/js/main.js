@@ -291,8 +291,8 @@ async function loadBoard(uri) {
   app.innerHTML = '<div class="empty-state">Loading…</div>';
 
   try {
-    // Always fetch with preview=5 so toggling views is instant (no second fetch)
-    const { board, threads } = await api.get('/threads/' + uri + '?preview=5');
+    // Always fetch with preview=4 so toggling views is instant (no second fetch)
+    const { board, threads } = await api.get('/threads/' + uri + '?preview=4');
     state.currentBoard  = board;
     state.boardThreads  = threads;
 

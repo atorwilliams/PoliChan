@@ -48,7 +48,7 @@ router.get('/:boardUri', async (req, res) => {
         byThread[p.threadId].push(p);
       }
       for (const t of threads) {
-        t.lastPosts = (byThread[t.threadId] || []).slice(-preview);
+        t.lastPosts = (byThread[t.threadId] || []).slice(0, preview);
       }
     }
 
