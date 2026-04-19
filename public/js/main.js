@@ -213,7 +213,13 @@ async function handleWalletClick() {
   }
 
   if (!window.ethereum) {
-    alert('MetaMask is not installed.');
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      const deepLink = 'https://metamask.app.link/dapp/' + location.host + location.pathname;
+      window.location.href = deepLink;
+    } else {
+      alert('MetaMask is not installed. Get it at metamask.io.');
+    }
     return;
   }
 
