@@ -102,10 +102,8 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
     // Country flair override — always applied when poster is foreign to the board's home country
     {
       const posterCountry = geoip.getCountry(rawIp);
-      const raw = board?.country || '';
-      const homeCountry = raw.length === 2
-        ? raw.toUpperCase()
-        : (board?.allowedCountries?.length === 1 ? board.allowedCountries[0].toUpperCase() : '');
+      const homeCountry = board?.homeCountry
+        || (board?.country?.length === 2 ? board.country.toUpperCase() : '');
       if (posterCountry && homeCountry && posterCountry !== homeCountry) {
         const rule = await CountryFlair.findOne({
           fromCountry: posterCountry,

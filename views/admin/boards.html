@@ -67,9 +67,13 @@
           <input type="checkbox" id="f-listed" checked style="width:auto">
           <label for="f-listed" style="text-transform:none;font-size:0.82rem;cursor:pointer">Listed (visible on index)</label>
         </div>
-        <div class="field span-2">
+        <div class="field">
           <label>Region Lock <span style="color:var(--muted);font-weight:400;text-transform:none">(comma-separated ISO codes, e.g. CA,US — empty = no restriction)</span></label>
           <input type="text" id="f-allowedCountries" placeholder="CA,US">
+        </div>
+        <div class="field">
+          <label>Home Country <span style="color:var(--muted);font-weight:400;text-transform:none">(ISO alpha-2 — sets country flair for foreign posters, e.g. US)</span></label>
+          <input type="text" id="f-homeCountry" maxlength="2" placeholder="US" style="text-transform:uppercase">
         </div>
         <div class="field span-2">
           <label>Board Rules <span style="color:var(--muted);font-weight:400;text-transform:none">(shown collapsed above post form — plain text)</span></label>
@@ -149,7 +153,7 @@
   function showCreateForm() {
     editingUri = null;
     document.getElementById('formTitle').textContent = 'Create Board';
-    ['uri','name','desc','parent','polimapKey','allowedCountries','rules'].forEach(id => document.getElementById('f-'+id).value = '');
+    ['uri','name','desc','parent','polimapKey','allowedCountries','homeCountry','rules'].forEach(id => document.getElementById('f-'+id).value = '');
     document.getElementById('f-minTier').value = '0';
     document.getElementById('f-maxThreads').value = 150;
     document.getElementById('f-archiveThreshold').value = 10;
@@ -176,6 +180,7 @@
     document.getElementById('f-archiveThreshold').value = b.settings?.archiveThreshold || 10;
     document.getElementById('f-listed').checked = b.isListed !== false;
     document.getElementById('f-allowedCountries').value = (b.allowedCountries || []).join(',');
+    document.getElementById('f-homeCountry').value = b.homeCountry || '';
     document.getElementById('f-minTier').value = String(b.minTier || 0);
     document.getElementById('f-rules').value = b.rules || '';
     document.getElementById('formError').textContent = '';
@@ -204,6 +209,7 @@
       archiveThreshold: parseInt(document.getElementById('f-archiveThreshold').value),
       isListed:         document.getElementById('f-listed').checked,
       allowedCountries: allowedRaw ? allowedRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [],
+      homeCountry:      document.getElementById('f-homeCountry').value.trim().toUpperCase() || '',
       minTier:          parseInt(document.getElementById('f-minTier').value) || 0,
       rules:            document.getElementById('f-rules').value.trim()
     };

@@ -185,7 +185,7 @@ router.post('/api/boards', async (req, res) => {
 
 router.patch('/api/boards/:uri', async (req, res) => {
   try {
-    const { name, description, rules, isListed, minTier, maxThreads, archiveThreshold, parentUri, allowedCountries } = req.body;
+    const { name, description, rules, isListed, minTier, maxThreads, archiveThreshold, parentUri, allowedCountries, homeCountry } = req.body;
     const update = {};
     if (name !== undefined)        update.name = name;
     if (description !== undefined) update.description = description;
@@ -196,8 +196,10 @@ router.patch('/api/boards/:uri', async (req, res) => {
     if (maxThreads !== undefined)  update['settings.maxThreads'] = maxThreads;
     if (archiveThreshold !== undefined) update['settings.archiveThreshold'] = archiveThreshold;
     if (allowedCountries !== undefined) {
-      // Normalise to uppercase, filter blanks
       update.allowedCountries = (allowedCountries || []).map(c => c.trim().toUpperCase()).filter(Boolean);
+    }
+    if (homeCountry !== undefined) {
+      update.homeCountry = homeCountry ? homeCountry.trim().toUpperCase() : '';
     }
 
     // Re-derive country/region from current URI (updateOne bypasses pre-save hooks)

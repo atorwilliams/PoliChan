@@ -21,7 +21,9 @@ const boardSchema = new mongoose.Schema({
   // 0 = public, 1 = Constituent+, 2 = Member+, 3 = Minister only
   minTier:     { type: Number, default: 0 },
   // Region lock — empty array means no restriction; populate with uppercase ISO-3166-1 alpha-2 codes (e.g. ['CA', 'US'])
-  allowedCountries: [{ type: String }]
+  allowedCountries: [{ type: String }],
+  // Home country for flair override — uppercase ISO alpha-2 (e.g. 'US'). Separate from region lock.
+  homeCountry: { type: String, default: '' }
 }, { timestamps: true });
 
 // Derive country/region from uri on save
