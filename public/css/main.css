@@ -959,7 +959,7 @@ hr.index-divider {
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
-@media (max-width: 1600px) {
+@media (max-width: 900px) {
   #ad-sidebar { display: none !important; }
 }
 
