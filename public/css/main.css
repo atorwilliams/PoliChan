@@ -171,6 +171,14 @@ a:hover { color: var(--quotelink); }
   width: 100vw;
 }
 
+.board-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
 .board-header h1 {
   font-size: 1.8rem;
   font-weight: bold;
@@ -667,8 +675,7 @@ hr.index-divider {
 }
 
 .index-op-header .postInfo {
-  flex-wrap: nowrap;
-  overflow: hidden;
+  flex-wrap: wrap;
 }
 
 /* Replies beside the OP (first 2) */
@@ -951,6 +958,10 @@ hr.index-divider {
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1600px) {
+  #ad-sidebar { display: none !important; }
+}
 
 @media (max-width: 680px) {
   #app { padding: 8px 6px 60px; }

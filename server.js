@@ -121,6 +121,76 @@ app.get('/api/constitution', async (_req, res) => {
   }
 });
 
+// Public ads API
+app.get('/api/ads/:boardUri', async (req, res) => {
+  try {
+    const Advertiser = require('./models/Advertiser');
+    const Board      = require('./models/Board');
+    const now = new Date();
+    const { boardUri } = req.params;
+    const { type } = req.query;
+
+    const board = await Board.findOne({ uri: boardUri }).lean();
+    const scopeChain = [boardUri];
+    if (board?.parentUri) scopeChain.push(board.parentUri);
+    scopeChain.push(null);
+
+    const advertisers = await Advertiser.find({
+      'ads.isActive': true,
+      'ads.type': type || { $exists: true }
+    }).lean();
+
+    const pool = [];
+    for (const adv of advertisers) {
+      for (const ad of adv.ads) {
+        if (!ad.isActive) continue;
+        if (type && ad.type !== type) continue;
+        if (ad.startDate && ad.startDate > now) continue;
+        if (ad.endDate   && ad.endDate   < now) continue;
+        if (!scopeChain.includes(ad.boardUri)) continue;
+        pool.push({ advertiserId: adv._id, adId: ad._id, type: ad.type,
+          imageUrl: `/uploads/ads/${ad.imageFile}`, clickUrl: ad.clickUrl,
+          scope: scopeChain.indexOf(ad.boardUri) });
+      }
+    }
+
+    if (!pool.length) return res.json({ ad: null });
+    pool.sort((a, b) => a.scope - b.scope);
+    const bestScope = pool[0].scope;
+    const candidates = pool.filter(a => a.scope === bestScope);
+    const ad = candidates[Math.floor(Math.random() * candidates.length)];
+    res.json({ ad });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ads/:advertiserId/:adId/impression', async (req, res) => {
+  try {
+    const Advertiser = require('./models/Advertiser');
+    await Advertiser.updateOne(
+      { _id: req.params.advertiserId, 'ads._id': req.params.adId },
+      { $inc: { 'ads.$.impressions': 1 } }
+    );
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+app.post('/api/ads/:advertiserId/:adId/click', async (req, res) => {
+  try {
+    const Advertiser = require('./models/Advertiser');
+    await Advertiser.updateOne(
+      { _id: req.params.advertiserId, 'ads._id': req.params.adId },
+      { $inc: { 'ads.$.clicks': 1 } }
+    );
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
 // Static pages — must be before the catch-all
 app.get('/pass',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'pass.html')));
 app.get('/wall',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));

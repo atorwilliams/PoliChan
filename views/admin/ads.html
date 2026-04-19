@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ads — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Advertisers &amp; Ads</h1>
+    <button class="btn btn-primary" onclick="showNewAdvertiserForm()">+ New Advertiser</button>
+  </div>
+
+  <!-- New advertiser form -->
+  <div class="panel" id="advFormPanel" style="display:none">
+    <div class="panel-header">
+      <span>New Advertiser</span>
+      <button class="btn btn-ghost btn-sm" onclick="hideAdvForm()">Cancel</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="field">
+          <label>Company Name</label>
+          <input type="text" id="af-company" placeholder="ACME Corp">
+        </div>
+        <div class="field">
+          <label>Contact <span style="color:var(--muted);font-weight:400;text-transform:none">(email or note)</span></label>
+          <input type="text" id="af-contact" placeholder="ads@acme.com">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="createAdvertiser()">Create</button>
+        <span class="error-msg" id="advFormError"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- New ad form -->
+  <div class="panel" id="adFormPanel" style="display:none">
+    <div class="panel-header">
+      <span id="adFormTitle">Upload Ad</span>
+      <button class="btn btn-ghost btn-sm" onclick="hideAdForm()">Cancel</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="field">
+          <label>Type</label>
+          <select id="af-type">
+            <option value="header">Header — 728×90</option>
+            <option value="banner">Banner — 468×60</option>
+            <option value="footer">Footer — 300×250</option>
+            <option value="sidebar">Sidebar — 160×600</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Board URI <span style="color:var(--muted);font-weight:400;text-transform:none">(empty = global)</span></label>
+          <input type="text" id="af-boardUri" placeholder="ca-ab">
+        </div>
+        <div class="field span-2">
+          <label>Click URL</label>
+          <input type="text" id="af-clickUrl" placeholder="https://example.com">
+        </div>
+        <div class="field">
+          <label>Start Date <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+          <input type="date" id="af-startDate">
+        </div>
+        <div class="field">
+          <label>End Date <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+          <input type="date" id="af-endDate">
+        </div>
+        <div class="field span-2">
+          <label>Image <span style="color:var(--muted);font-weight:400;text-transform:none">(PNG/JPG/GIF/WebP, max 2 MB)</span></label>
+          <input type="file" id="af-image" accept="image/png,image/jpeg,image/gif,image/webp">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="uploadAd()">Upload</button>
+        <span class="error-msg" id="adFormError"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advertiser list -->
+  <div id="advertiserList"></div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/ads');
+
+  let advertisers = [];
+  let targetAdvertiserId = null;
+
+  async function load() {
+    const data = await api('GET', '/admin/api/advertisers');
+    advertisers = data.advertisers;
+    renderList();
+  }
+
+  function renderList() {
+    const el = document.getElementById('advertiserList');
+    if (!advertisers.length) {
+      el.innerHTML = '<div class="panel"><div class="panel-body"><div class="empty">No advertisers yet.</div></div></div>';
+      return;
+    }
+
+    el.innerHTML = advertisers.map(adv => {
+      const totalImpressions = adv.ads.reduce((s, a) => s + (a.impressions || 0), 0);
+      const totalClicks      = adv.ads.reduce((s, a) => s + (a.clicks || 0), 0);
+
+      const adsRows = adv.ads.length ? adv.ads.map(ad => {
+        const ctr = ad.impressions ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '0.0';
+        const dateRange = [
+          ad.startDate ? new Date(ad.startDate).toLocaleDateString('en-CA') : '',
+          ad.endDate   ? new Date(ad.endDate).toLocaleDateString('en-CA')   : ''
+        ].filter(Boolean).join(' → ') || '—';
+
+        return `<tr>
+          <td><img src="/uploads/ads/${esc(ad.imageFile)}" style="max-height:40px;max-width:120px;border:1px solid var(--border)"></td>
+          <td><span style="text-transform:capitalize">${esc(ad.type)}</span></td>
+          <td style="color:var(--muted);font-size:0.78rem">${ad.boardUri ? '/'+esc(ad.boardUri)+'/' : 'global'}</td>
+          <td style="font-size:0.78rem;color:var(--muted)">${esc(dateRange)}</td>
+          <td>${ad.impressions.toLocaleString()}</td>
+          <td>${ad.clicks.toLocaleString()}</td>
+          <td>${ctr}%</td>
+          <td>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" ${ad.isActive ? 'checked' : ''} onchange="toggleAd('${adv._id}','${ad._id}',this.checked)">
+              <span style="font-size:0.75rem">${ad.isActive ? 'Active' : 'Paused'}</span>
+            </label>
+          </td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="deleteAd('${adv._id}','${ad._id}')">Delete</button>
+          </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:12px">No ads yet.</td></tr>`;
+
+      return `<div class="panel" style="margin-bottom:16px">
+        <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>${esc(adv.company)}</strong>
+            ${adv.contact ? `<span style="color:var(--muted);font-size:0.8rem;margin-left:8px">${esc(adv.contact)}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="color:var(--muted);font-size:0.78rem">${totalImpressions.toLocaleString()} imp / ${totalClicks.toLocaleString()} clicks</span>
+            <button class="btn btn-ghost btn-sm" onclick="showAdForm('${adv._id}','${esc(adv.company)}')">+ Ad</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAdvertiser('${adv._id}','${esc(adv.company)}')">Delete</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Preview</th><th>Type</th><th>Scope</th><th>Dates</th>
+              <th>Impressions</th><th>Clicks</th><th>CTR</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody>${adsRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function showNewAdvertiserForm() {
+    document.getElementById('af-company').value = '';
+    document.getElementById('af-contact').value = '';
+    document.getElementById('advFormError').textContent = '';
+    document.getElementById('advFormPanel').style.display = 'block';
+    document.getElementById('advFormPanel').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function hideAdvForm() {
+    document.getElementById('advFormPanel').style.display = 'none';
+  }
+
+  async function createAdvertiser() {
+    const errEl = document.getElementById('advFormError');
+    errEl.textContent = '';
+    try {
+      await api('POST', '/admin/api/advertisers', {
+        company: document.getElementById('af-company').value.trim(),
+        contact: document.getElementById('af-contact').value.trim()
+      });
+      hideAdvForm();
+      toast('Advertiser created');
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  }
+
+  async function deleteAdvertiser(id, name) {
+    if (!confirm(`Delete advertiser "${name}" and all their ads? This cannot be undone.`)) return;
+    try {
+      await api('DELETE', `/admin/api/advertisers/${id}`);
+      toast('Advertiser deleted');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  function showAdForm(advertiserId, companyName) {
+    targetAdvertiserId = advertiserId;
+    document.getElementById('adFormTitle').textContent = `Upload Ad for ${companyName}`;
+    document.getElementById('af-type').value = 'header';
+    document.getElementById('af-boardUri').value = '';
+    document.getElementById('af-clickUrl').value = '';
+    document.getElementById('af-startDate').value = '';
+    document.getElementById('af-endDate').value = '';
+    document.getElementById('af-image').value = '';
+    document.getElementById('adFormError').textContent = '';
+    document.getElementById('adFormPanel').style.display = 'block';
+    document.getElementById('adFormPanel').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function hideAdForm() {
+    document.getElementById('adFormPanel').style.display = 'none';
+    targetAdvertiserId = null;
+  }
+
+  async function uploadAd() {
+    const errEl = document.getElementById('adFormError');
+    errEl.textContent = '';
+    const file = document.getElementById('af-image').files[0];
+    if (!file) { errEl.textContent = 'Image required'; return; }
+
+    const fd = new FormData();
+    fd.append('image',    file);
+    fd.append('type',     document.getElementById('af-type').value);
+    fd.append('boardUri', document.getElementById('af-boardUri').value.trim());
+    fd.append('clickUrl', document.getElementById('af-clickUrl').value.trim());
+    fd.append('startDate',document.getElementById('af-startDate').value);
+    fd.append('endDate',  document.getElementById('af-endDate').value);
+
+    try {
+      const res = await fetch(`/admin/api/advertisers/${targetAdvertiserId}/ads`, {
+        method: 'POST', body: fd
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      hideAdForm();
+      toast('Ad uploaded');
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  }
+
+  async function toggleAd(advertiserId, adId, isActive) {
+    try {
+      await api('PATCH', `/admin/api/advertisers/${advertiserId}/ads/${adId}`, { isActive });
+      toast(isActive ? 'Ad activated' : 'Ad paused');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function deleteAd(advertiserId, adId) {
+    if (!confirm('Delete this ad? This cannot be undone.')) return;
+    try {
+      await api('DELETE', `/admin/api/advertisers/${advertiserId}/ads/${adId}`);
+      toast('Ad deleted');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

@@ -15,6 +15,7 @@ function adminNav(active) {
     { href: '/admin/verified',        label: 'Verified'        },
     { href: '/admin/announcements',   label: 'Announcements'   },
     { href: '/admin/banners',         label: 'Banners'         },
+    { href: '/admin/ads',             label: 'Ads'             },
     { href: '/admin/constitution',    label: 'Constitution'    },
     { href: '/admin/danger',        label: '⚠ Danger',  danger: true }
   ];

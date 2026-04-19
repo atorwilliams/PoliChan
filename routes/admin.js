@@ -14,6 +14,7 @@ const WordFilter = require('../models/WordFilter');
 const SiteConfig    = require('../models/SiteConfig');
 const Banner        = require('../models/Banner');
 const Announcement  = require('../models/Announcement');
+const Advertiser    = require('../models/Advertiser');
 const multer     = require('multer');
 const markup     = require('../services/markup');
 const { requireAdmin, issueToken } = require('../middleware/auth');
@@ -101,6 +102,7 @@ router.get('/danger',          view('danger'));
 router.get('/constitution',    view('constitution'));
 router.get('/banners',         view('banners'));
 router.get('/announcements',   view('announcements'));
+router.get('/ads',             view('ads'));
 
 // ── Boards ────────────────────────────────────────────────────────────────────
 
@@ -808,6 +810,147 @@ router.patch('/api/constitution', requireAdmin, async (req, res) => {
       { key: 'constitution' },
       { value: text },
       { upsert: true }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Advertisers / Ads ─────────────────────────────────────────────────────────
+
+const AD_ROOT = path.join(__dirname, '../public/uploads/ads');
+
+const adUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      fs.mkdirSync(AD_ROOT, { recursive: true });
+      cb(null, AD_ROOT);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+    }
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, /image\/(png|jpeg|gif|webp)/.test(file.mimetype));
+  }
+});
+
+router.get('/api/advertisers', requireAdmin, async (req, res) => {
+  try {
+    const advertisers = await Advertiser.find().sort({ company: 1 }).lean();
+    res.json({ advertisers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/advertisers', requireAdmin, async (req, res) => {
+  try {
+    const { company, contact } = req.body;
+    if (!company) return res.status(400).json({ error: 'Company name required' });
+    const slug = company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const advertiser = await Advertiser.create({ slug, company, contact: contact || '' });
+    res.json({ advertiser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/advertisers/:id', requireAdmin, async (req, res) => {
+  try {
+    const { company, contact } = req.body;
+    const advertiser = await Advertiser.findByIdAndUpdate(
+      req.params.id,
+      { company, contact },
+      { new: true }
+    ).lean();
+    if (!advertiser) return res.status(404).json({ error: 'Not found' });
+    res.json({ advertiser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/advertisers/:id', requireAdmin, async (req, res) => {
+  try {
+    const advertiser = await Advertiser.findById(req.params.id).lean();
+    if (!advertiser) return res.status(404).json({ error: 'Not found' });
+    for (const ad of advertiser.ads) {
+      const f = path.join(AD_ROOT, ad.imageFile);
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    await Advertiser.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/advertisers/:id/ads', requireAdmin, adUpload.single('image'), async (req, res) => {
+  try {
+    const { type, boardUri, clickUrl, startDate, endDate } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'Image required' });
+    if (!['header', 'banner', 'footer', 'sidebar'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
+    if (!clickUrl) return res.status(400).json({ error: 'Click URL required' });
+
+    const ad = {
+      type,
+      boardUri: boardUri || null,
+      imageFile: req.file.filename,
+      clickUrl,
+      isActive: true,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate:   endDate   ? new Date(endDate)   : null,
+      impressions: 0,
+      clicks: 0
+    };
+
+    const advertiser = await Advertiser.findByIdAndUpdate(
+      req.params.id,
+      { $push: { ads: ad } },
+      { new: true }
+    ).lean();
+    if (!advertiser) return res.status(404).json({ error: 'Not found' });
+    res.json({ advertiser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/advertisers/:id/ads/:adId', requireAdmin, async (req, res) => {
+  try {
+    const { isActive, clickUrl, startDate, endDate } = req.body;
+    const update = {};
+    if (isActive !== undefined) update['ads.$.isActive'] = isActive;
+    if (clickUrl !== undefined) update['ads.$.clickUrl'] = clickUrl;
+    if (startDate !== undefined) update['ads.$.startDate'] = startDate ? new Date(startDate) : null;
+    if (endDate   !== undefined) update['ads.$.endDate']   = endDate   ? new Date(endDate)   : null;
+
+    await Advertiser.updateOne(
+      { _id: req.params.id, 'ads._id': req.params.adId },
+      { $set: update }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/advertisers/:id/ads/:adId', requireAdmin, async (req, res) => {
+  try {
+    const advertiser = await Advertiser.findById(req.params.id).lean();
+    if (!advertiser) return res.status(404).json({ error: 'Not found' });
+    const ad = advertiser.ads.find(a => String(a._id) === req.params.adId);
+    if (ad) {
+      const f = path.join(AD_ROOT, ad.imageFile);
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    await Advertiser.updateOne(
+      { _id: req.params.id },
+      { $pull: { ads: { _id: req.params.adId } } }
     );
     res.json({ ok: true });
   } catch (err) {

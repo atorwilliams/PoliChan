@@ -339,6 +339,80 @@ function renderBoardBanner() {
   el.querySelector('img').src = _boardBanners[_boardIdx].url;
 }
 
+// ── Ads ───────────────────────────────────────────────────────────────────────
+
+async function loadAds(uri) {
+  if ((state.session?.poliPassTier || 0) >= 2) {
+    const msg = `<div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:0.78rem;color:var(--muted);font-style:italic">No ads :)<br>Thanks for supporting PoliChan</div>`;
+    ['ad-left','ad-right'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.innerHTML = msg; el.style.display = 'flex'; }
+    });
+    const sidebar = document.getElementById('ad-sidebar');
+    if (sidebar) sidebar.style.display = 'none';
+    return;
+  }
+
+  const slots = [
+    { type: 'header', elId: 'ad-left',   imgId: 'ad-left-img',   linkId: 'ad-left-link'  },
+    { type: 'header', elId: 'ad-right',  imgId: 'ad-right-img',  linkId: 'ad-right-link' },
+    { type: 'footer', elId: 'ad-footer', imgId: 'ad-footer-img', linkId: 'ad-footer-link'},
+  ];
+
+  for (const s of slots.filter(s => s.type === 'header')) {
+    try {
+      const { ad } = await fetch(`/api/ads/${uri}?type=header`).then(r => r.json());
+      const slot = document.getElementById(s.elId);
+      if (!slot) continue;
+      if (!ad) { slot.style.display = 'none'; continue; }
+      slot.style.display = 'flex';
+      document.getElementById(s.imgId).src = ad.imageUrl;
+      fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+      document.getElementById(s.linkId).onclick = (e) => {
+        e.preventDefault();
+        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/click`, { method: 'POST' }).catch(() => {});
+        window.open(ad.clickUrl, '_blank', 'noopener,noreferrer');
+      };
+    } catch (_) {}
+  }
+
+  try {
+    const { ad } = await fetch(`/api/ads/${uri}?type=footer`).then(r => r.json());
+    const slot = document.getElementById('ad-footer');
+    if (slot) {
+      if (!ad) { slot.style.display = 'none'; }
+      else {
+        slot.style.display = 'block';
+        document.getElementById('ad-footer-img').src = ad.imageUrl;
+        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+        document.getElementById('ad-footer-link').onclick = (e) => {
+          e.preventDefault();
+          fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/click`, { method: 'POST' }).catch(() => {});
+          window.open(ad.clickUrl, '_blank', 'noopener,noreferrer');
+        };
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
+    const slot = document.getElementById('ad-sidebar');
+    if (slot) {
+      if (!ad) { slot.style.display = 'none'; }
+      else {
+        slot.style.display = 'flex';
+        document.getElementById('ad-sidebar-img').src = ad.imageUrl;
+        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+        document.getElementById('ad-sidebar-link').onclick = (e) => {
+          e.preventDefault();
+          fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/click`, { method: 'POST' }).catch(() => {});
+          window.open(ad.clickUrl, '_blank', 'noopener,noreferrer');
+        };
+      }
+    }
+  } catch (_) {}
+}
+
 // ── Board rules toggle ────────────────────────────────────────────────────────
 
 function toggleBoardRules() {
@@ -414,12 +488,28 @@ async function loadBoard(uri) {
       </div>
 
       <div class="board-header">
-        <div id="banner-global" style="display:none;margin-bottom:10px">
-          <img src="" alt="banner" style="width:300px;height:100px;object-fit:contain">
+        <div class="board-header-top">
+          <div id="ad-left" style="display:none;flex:1;flex-direction:column;align-items:center">
+            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
+            <a id="ad-left-link" href="#" target="_blank" rel="noopener noreferrer">
+              <img id="ad-left-img" src="" alt="ad" style="max-width:100%;height:90px;object-fit:contain">
+            </a>
+          </div>
+          <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center">
+            <div id="banner-global" style="display:none">
+              <img src="" alt="banner" style="width:300px;height:100px;object-fit:contain">
+            </div>
+            <div class="board-uri-label">/${esc(board.uri)}/</div>
+            <h1>${esc(board.name)}</h1>
+            ${board.description ? `<div class="board-desc">${esc(board.description)}</div>` : ''}
+          </div>
+          <div id="ad-right" style="display:none;flex:1;flex-direction:column;align-items:center">
+            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
+            <a id="ad-right-link" href="#" target="_blank" rel="noopener noreferrer">
+              <img id="ad-right-img" src="" alt="ad" style="max-width:100%;height:90px;object-fit:contain">
+            </a>
+          </div>
         </div>
-        <div class="board-uri-label">/${esc(board.uri)}/</div>
-        <h1>${esc(board.name)}</h1>
-        ${board.description ? `<div class="board-desc">${esc(board.description)}</div>` : ''}
         <div class="board-actions">
           ${board.rules ? `[<a href="#" onclick="toggleBoardRules();return false">Rules</a>]` : ''}
           [<a class="view-toggle-btn ${v === 'catalog' ? 'active' : ''}" href="#" onclick="switchBoardView('catalog','${esc(uri)}');return false" data-view="catalog">Catalog</a>]
@@ -442,10 +532,25 @@ async function loadBoard(uri) {
         <img src="" alt="banner" style="width:468px;height:60px;object-fit:contain;max-width:100%">
       </div>
 
-      <div id="board-content"></div>`;
+      <div id="board-content"></div>
+
+      <div id="ad-sidebar" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:10;flex-direction:column;align-items:center;gap:4px">
+        <div style="font-size:0.68rem;color:var(--muted)">Sponsored</div>
+        <a id="ad-sidebar-link" href="#" target="_blank" rel="noopener noreferrer">
+          <img id="ad-sidebar-img" src="" alt="ad" style="width:160px;height:600px;object-fit:contain;display:block">
+        </a>
+      </div>
+
+      <div id="ad-footer" style="display:none;margin:16px 0;text-align:center">
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
+        <a id="ad-footer-link" href="#" target="_blank" rel="noopener noreferrer">
+          <img id="ad-footer-img" src="" alt="ad" style="width:300px;height:250px;object-fit:contain;max-width:100%">
+        </a>
+      </div>`;
 
     renderBoardContent(threads, board, uri);
     loadBanners(uri);
+    loadAds(uri);
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load board: ${e.message}</div>`;
   }
@@ -524,7 +629,7 @@ function renderIndexThreads(threads, uri) {
     const imgHtml = t.media?.thumbName
       ? `<div class="index-img-float">
           <div class="file-info">File: <a href="/uploads/${uri}/${t.media.storedName}" target="_blank">${esc(t.media.originalName || t.media.storedName)}</a> (${t.media.size ? Math.round(t.media.size/1024)+' KB' : ''})</div>
-          <img src="/uploads/${uri}/${t.media.thumbName}" data-full="/uploads/${uri}/${t.media.storedName}" onclick="expandImage(this)" loading="lazy">
+          <img src="/uploads/${uri}/${t.media.thumbName}" data-full="/uploads/${uri}/${t.media.storedName}" data-type="${esc(t.media.type || '')}" onclick="expandMedia(this)" loading="lazy">
         </div>`
       : '';
 
@@ -548,8 +653,9 @@ function renderIndexThreads(threads, uri) {
         ${omittedHtml}
       </div>
       ${belowHtml}
-    </div>`;
-  }).join('<hr class="index-divider">');
+    </div>
+    <hr class="index-divider">`;
+  }).join('');
 }
 
 function renderIndexOP(t, uri) {
@@ -1137,6 +1243,41 @@ function expandImage(img) {
     img.src = img.dataset.full;
     img.classList.add('expanded');
     container?.classList.add('expanded');
+  }
+}
+
+function expandMedia(img) {
+  const type = img.dataset.type;
+  if (type === 'mp4' || type === 'webm') {
+    const float = img.closest('.index-img-float');
+    float?.classList.add('expanded');
+
+    const video = document.createElement('video');
+    video.src = img.dataset.full;
+    video.poster = img.src;
+    video.controls = true;
+    video.loop = true;
+    video.autoplay = true;
+    video.style.cssText = 'max-width:100%;display:block';
+
+    const close = document.createElement('a');
+    close.textContent = '[close]';
+    close.href = '#';
+    close.style.cssText = 'font-size:0.75rem;display:block;margin-bottom:4px;cursor:pointer';
+    close.onclick = (e) => {
+      e.preventDefault();
+      video.pause();
+      video.src = '';
+      float?.classList.remove('expanded');
+      wrapper.replaceWith(img);
+    };
+
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(close);
+    wrapper.appendChild(video);
+    img.replaceWith(wrapper);
+  } else {
+    expandImage(img);
   }
 }
 
