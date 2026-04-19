@@ -534,10 +534,10 @@ async function loadBoard(uri) {
 
       <div id="board-content"></div>
 
-      <div id="ad-sidebar" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:10;flex-direction:column;align-items:center;gap:4px">
+      <div id="ad-sidebar" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:10;flex-direction:column;align-items:center;gap:4px;width:160px">
         <div style="font-size:0.68rem;color:var(--muted)">Sponsored</div>
         <a id="ad-sidebar-link" href="#" target="_blank" rel="noopener noreferrer">
-          <img id="ad-sidebar-img" src="" alt="ad" style="width:160px;height:600px;object-fit:contain;display:block">
+          <img id="ad-sidebar-img" src="" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
         </a>
       </div>
 
