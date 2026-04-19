@@ -47,6 +47,15 @@
           <input type="text" id="f-polimapKey" placeholder="AB">
         </div>
         <div class="field">
+          <label>Min Pass Tier</label>
+          <select id="f-minTier">
+            <option value="0">0 — Public</option>
+            <option value="1">1 — Constituent+</option>
+            <option value="2">2 — Member+</option>
+            <option value="3">3 — Minister only</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Max Threads</label>
           <input type="number" id="f-maxThreads" value="150" min="1">
         </div>
@@ -61,6 +70,10 @@
         <div class="field span-2">
           <label>Region Lock <span style="color:var(--muted);font-weight:400;text-transform:none">(comma-separated ISO codes, e.g. CA,US — empty = no restriction)</span></label>
           <input type="text" id="f-allowedCountries" placeholder="CA,US">
+        </div>
+        <div class="field span-2">
+          <label>Board Rules <span style="color:var(--muted);font-weight:400;text-transform:none">(shown collapsed above post form — plain text)</span></label>
+          <textarea id="f-rules" rows="4" style="width:100%;font-family:monospace;font-size:0.82rem;background:var(--input-bg,#111);color:var(--text,#eee);border:1px solid var(--border,#333);padding:6px;resize:vertical" placeholder="1. No spam&#10;2. Stay on topic"></textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -136,7 +149,8 @@
   function showCreateForm() {
     editingUri = null;
     document.getElementById('formTitle').textContent = 'Create Board';
-    ['uri','name','desc','parent','polimapKey','allowedCountries'].forEach(id => document.getElementById('f-'+id).value = '');
+    ['uri','name','desc','parent','polimapKey','allowedCountries','rules'].forEach(id => document.getElementById('f-'+id).value = '');
+    document.getElementById('f-minTier').value = '0';
     document.getElementById('f-maxThreads').value = 150;
     document.getElementById('f-archiveThreshold').value = 10;
     document.getElementById('f-listed').checked = true;
@@ -162,6 +176,8 @@
     document.getElementById('f-archiveThreshold').value = b.settings?.archiveThreshold || 10;
     document.getElementById('f-listed').checked = b.isListed !== false;
     document.getElementById('f-allowedCountries').value = (b.allowedCountries || []).join(',');
+    document.getElementById('f-minTier').value = String(b.minTier || 0);
+    document.getElementById('f-rules').value = b.rules || '';
     document.getElementById('formError').textContent = '';
     const p = document.getElementById('formPanel');
     p.style.display = 'block';
@@ -187,7 +203,9 @@
       maxThreads:       parseInt(document.getElementById('f-maxThreads').value),
       archiveThreshold: parseInt(document.getElementById('f-archiveThreshold').value),
       isListed:         document.getElementById('f-listed').checked,
-      allowedCountries: allowedRaw ? allowedRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : []
+      allowedCountries: allowedRaw ? allowedRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [],
+      minTier:          parseInt(document.getElementById('f-minTier').value) || 0,
+      rules:            document.getElementById('f-rules').value.trim()
     };
 
     if (!body.name) { errEl.textContent = 'Name is required'; return; }

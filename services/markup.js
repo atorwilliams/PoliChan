@@ -76,9 +76,26 @@ function generateEmbeds(rawBody) {
   return parts.join('');
 }
 
+// ── Block-level tags (must run before line splitting) ─────────────────────────
+
+function applyBlockTags(text) {
+  // [code]...[/code] — preserve whitespace, skip further inline markup
+  text = text.replace(/\[code\]([\s\S]*?)\[\/code\]/gi, (_, inner) =>
+    `<pre><code>${inner.trim()}</code></pre>`
+  );
+  // [spoiler]...[/spoiler]
+  text = text.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner) =>
+    `<span class="spoiler">${inner}</span>`
+  );
+  return text;
+}
+
 // ── Markup parsing ─────────────────────────────────────────────────────────────
 
 function parseLine(line) {
+  // Skip further inline markup inside pre/code blocks
+  if (line.startsWith('<pre>') || line.startsWith('</pre>')) return line;
+
   // Greentext — line starts with >
   if (line.startsWith('&gt;') && !line.startsWith('&gt;&gt;')) {
     return `<span class="greentext">&gt;${line.slice(4)}</span>`;
@@ -89,7 +106,7 @@ function parseLine(line) {
     `<a class="quotelink" href="#p${id}">&gt;&gt;${id}</a>`
   );
 
-  // Plain URLs → clickable links (skip content already inside an <a>)
+  // Plain URLs → clickable links (http/https only, never javascript:/data:)
   line = line.replace(/https?:\/\/[^\s<>"]+/g, url => {
     const clean = url.replace(/[.,;:!?)]+$/, '');
     return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>`;
@@ -101,7 +118,13 @@ function parseLine(line) {
   // ''italic'' (4chan style)
   line = line.replace(/''(.+?)''/g, '<em>$1</em>');
 
-  // `code`
+  // ~~strikethrough~~
+  line = line.replace(/~~(.+?)~~/g, '<s>$1</s>');
+
+  // ==red text==
+  line = line.replace(/==(.+?)==/g, '<span class="redtext">$1</span>');
+
+  // `inline code`
   line = line.replace(/`(.+?)`/g, '<code>$1</code>');
 
   return line;
@@ -115,7 +138,8 @@ async function process(body) {
   if (!_loaded) await loadCache();
   const escaped  = escapeHtml(body);
   const filtered = applyWordFilter(escaped);
-  const lines    = filtered.split('\n');
+  const blocked  = applyBlockTags(filtered);
+  const lines    = blocked.split('\n');
   const bodyHtml = lines.map(parseLine).join('<br>');
   return bodyHtml + generateEmbeds(body);
 }

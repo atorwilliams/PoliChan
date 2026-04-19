@@ -11,7 +11,10 @@ const Report   = require('../models/Report');
 const Account  = require('../models/Account');
 const FlairRule  = require('../models/FlairRule');
 const WordFilter = require('../models/WordFilter');
-const SiteConfig = require('../models/SiteConfig');
+const SiteConfig    = require('../models/SiteConfig');
+const Banner        = require('../models/Banner');
+const Announcement  = require('../models/Announcement');
+const multer     = require('multer');
 const markup     = require('../services/markup');
 const { requireAdmin, issueToken } = require('../middleware/auth');
 const config   = require('../config');
@@ -94,8 +97,10 @@ router.get('/flairs',      view('flairs'));
 router.get('/polls',       view('polls'));
 router.get('/wordfilter',  view('wordfilter'));
 router.get('/verified',    view('verified'));
-router.get('/danger',        view('danger'));
-router.get('/constitution',  view('constitution'));
+router.get('/danger',          view('danger'));
+router.get('/constitution',    view('constitution'));
+router.get('/banners',         view('banners'));
+router.get('/announcements',   view('announcements'));
 
 // ── Boards ────────────────────────────────────────────────────────────────────
 
@@ -112,11 +117,12 @@ router.post('/api/boards', async (req, res) => {
 
     const board = await Board.create({
       uri, name,
-      description:  description || '',
-      parentUri:    parentUri || null,
+      description:  req.body.description || '',
+      parentUri:    req.body.parentUri || null,
+      rules:        req.body.rules || '',
       settings: {
-        maxThreads:       maxThreads || 150,
-        archiveThreshold: archiveThreshold || 10
+        maxThreads:       req.body.maxThreads || 150,
+        archiveThreshold: req.body.archiveThreshold || 10
       }
     });
     res.status(201).json({ board });
@@ -128,11 +134,13 @@ router.post('/api/boards', async (req, res) => {
 
 router.patch('/api/boards/:uri', async (req, res) => {
   try {
-    const { name, description, isListed, maxThreads, archiveThreshold, parentUri, allowedCountries } = req.body;
+    const { name, description, rules, isListed, minTier, maxThreads, archiveThreshold, parentUri, allowedCountries } = req.body;
     const update = {};
     if (name !== undefined)        update.name = name;
     if (description !== undefined) update.description = description;
+    if (rules !== undefined)       update.rules = rules;
     if (isListed !== undefined)    update.isListed = isListed;
+    if (minTier !== undefined)     update.minTier = minTier;
     if (parentUri !== undefined)   update.parentUri = parentUri || null;
     if (maxThreads !== undefined)  update['settings.maxThreads'] = maxThreads;
     if (archiveThreshold !== undefined) update['settings.archiveThreshold'] = archiveThreshold;
@@ -671,6 +679,111 @@ router.post('/api/wipe', async (req, res) => {
     fs.mkdirSync(uploadsDir, { recursive: true });
 
     console.warn(`[WIPE] Forum wiped by admin at ${new Date().toISOString()}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+
+router.get('/api/announcements', requireAdmin, async (req, res) => {
+  try {
+    const announcements = await Announcement.find().sort({ createdAt: -1 }).lean();
+    res.json({ announcements });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/announcements', requireAdmin, async (req, res) => {
+  try {
+    const { text, boardUri } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: 'Text is required' });
+    const a = await Announcement.create({ text: text.trim(), boardUri: boardUri || null });
+    res.json({ announcement: a });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/announcements/:id', requireAdmin, async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    await Announcement.updateOne({ _id: req.params.id }, { isActive });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/announcements/:id', requireAdmin, async (req, res) => {
+  try {
+    await Announcement.deleteOne({ _id: req.params.id });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Banners ───────────────────────────────────────────────────────────────────
+
+const bannerUpload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 2 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    const ok = ['image/jpeg','image/png','image/gif','image/webp'].includes(file.mimetype);
+    cb(ok ? null : new Error('Images only'), ok);
+  }
+}).single('file');
+
+const BANNER_ROOT = path.join(__dirname, '../public/uploads/banners');
+
+router.get('/api/banners', requireAdmin, async (req, res) => {
+  try {
+    const banners = await Banner.find().sort({ createdAt: -1 }).lean();
+    res.json({ banners });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/banners', requireAdmin, (req, res) => {
+  bannerUpload(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+    const isGlobal  = req.body.isGlobal === 'true';
+    const boardUri  = isGlobal ? null : (req.body.boardUri || null);
+    const ext       = req.file.mimetype.split('/')[1].replace('jpeg','jpg');
+    const storedName = require('crypto').randomBytes(8).toString('hex') + '.' + ext;
+    const dir       = isGlobal
+      ? path.join(BANNER_ROOT, 'global')
+      : path.join(BANNER_ROOT, boardUri);
+
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, storedName), req.file.buffer);
+
+    try {
+      const banner = await Banner.create({
+        boardUri, isGlobal, storedName,
+        originalName: req.file.originalname
+      });
+      res.json({ banner });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
+router.delete('/api/banners/:id', requireAdmin, async (req, res) => {
+  try {
+    const banner = await Banner.findByIdAndDelete(req.params.id).lean();
+    if (!banner) return res.status(404).json({ error: 'Not found' });
+    const dir = banner.isGlobal
+      ? path.join(BANNER_ROOT, 'global')
+      : path.join(BANNER_ROOT, banner.boardUri);
+    try { fs.unlinkSync(path.join(dir, banner.storedName)); } catch (_) {}
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

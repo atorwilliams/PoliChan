@@ -270,6 +270,7 @@ async function loadIndex() {
     }
 
     app.innerHTML = html;
+    loadAnnouncements();
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load boards: ${e.message}</div>`;
   }
@@ -282,6 +283,112 @@ function boardRow(board, isChild) {
       <span class="board-list-name">${esc(board.name)}</span>
       <span class="board-list-stats">${board.threadCount || 0}T / ${board.postCount || 0}P</span>
     </div>`;
+}
+
+// ── Board Banners ─────────────────────────────────────────────────────────────
+
+let _globalBanners  = [], _globalIdx  = 0, _globalTimer  = null;
+let _boardBanners   = [], _boardIdx   = 0, _boardTimer   = null;
+
+async function loadBanners(uri) {
+  try {
+    const { banners } = await api.get('/banners/' + uri);
+    _globalBanners = (banners || []).filter(b => b.isGlobal);
+    _boardBanners  = (banners || []).filter(b => !b.isGlobal);
+  } catch (_) {
+    _globalBanners = [];
+    _boardBanners  = [];
+  }
+
+  _globalIdx = Math.floor(Math.random() * Math.max(_globalBanners.length, 1));
+  _boardIdx  = Math.floor(Math.random() * Math.max(_boardBanners.length, 1));
+
+  renderGlobalBanner();
+  renderBoardBanner();
+
+  if (_globalTimer) clearInterval(_globalTimer);
+  if (_boardTimer)  clearInterval(_boardTimer);
+
+  if (_globalBanners.length > 1) {
+    _globalTimer = setInterval(() => {
+      _globalIdx = (_globalIdx + 1) % _globalBanners.length;
+      renderGlobalBanner();
+    }, 30000);
+  }
+  if (_boardBanners.length > 1) {
+    _boardTimer = setInterval(() => {
+      _boardIdx = (_boardIdx + 1) % _boardBanners.length;
+      renderBoardBanner();
+    }, 30000);
+  }
+}
+
+function renderGlobalBanner() {
+  const el = document.getElementById('banner-global');
+  if (!el) return;
+  if (!_globalBanners.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.querySelector('img').src = _globalBanners[_globalIdx].url;
+}
+
+function renderBoardBanner() {
+  const el = document.getElementById('banner-board');
+  if (!el) return;
+  if (!_boardBanners.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.querySelector('img').src = _boardBanners[_boardIdx].url;
+}
+
+// ── Board rules toggle ────────────────────────────────────────────────────────
+
+function toggleBoardRules() {
+  const el = document.getElementById('board-rules');
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Announcements modal ───────────────────────────────────────────────────────
+
+const _dismissed = new Set(JSON.parse(localStorage.getItem('dismissed_announcements') || '[]'));
+
+async function loadAnnouncements() {
+  try {
+    const { announcements } = await api.get('/announcements');
+    const visible = announcements.filter(a => !_dismissed.has(a._id));
+    if (!visible.length) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'announcement-modal';
+    modal.innerHTML = `
+      <div id="announcement-modal-box">
+        <div id="announcement-modal-header">
+          <span>Announcements</span>
+          <button onclick="closeAnnouncementModal()" title="Close">✕</button>
+        </div>
+        <div id="announcement-modal-body">
+          ${visible.map(a => `<div class="announcement-item" data-id="${a._id}">
+            <p>${esc(a.text)}</p>
+            <button class="ann-dismiss" onclick="dismissAnnouncement('${a._id}')">Dismiss</button>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeAnnouncementModal(); });
+  } catch (_) {}
+}
+
+function dismissAnnouncement(id) {
+  _dismissed.add(id);
+  localStorage.setItem('dismissed_announcements', JSON.stringify([..._dismissed]));
+  const el = document.querySelector(`.announcement-item[data-id="${id}"]`);
+  if (el) {
+    el.remove();
+    if (!document.querySelectorAll('.announcement-item').length) closeAnnouncementModal();
+  }
+}
+
+function closeAnnouncementModal() {
+  document.getElementById('announcement-modal')?.remove();
 }
 
 // ── Board ─────────────────────────────────────────────────────────────────────
@@ -305,15 +412,22 @@ async function loadBoard(uri) {
         <span class="sep">›</span>
         <span>/${esc(board.uri)}/</span>
       </div>
+
       <div class="board-header">
+        <div id="banner-global" style="display:none;margin-bottom:10px">
+          <img src="" alt="banner" style="width:300px;height:100px;object-fit:contain">
+        </div>
         <div class="board-uri-label">/${esc(board.uri)}/</div>
         <h1>${esc(board.name)}</h1>
         ${board.description ? `<div class="board-desc">${esc(board.description)}</div>` : ''}
         <div class="board-actions">
+          ${board.rules ? `[<a href="#" onclick="toggleBoardRules();return false">Rules</a>]` : ''}
           [<a class="view-toggle-btn ${v === 'catalog' ? 'active' : ''}" href="#" onclick="switchBoardView('catalog','${esc(uri)}');return false" data-view="catalog">Catalog</a>]
           [<a class="view-toggle-btn ${v === 'index'   ? 'active' : ''}" href="#" onclick="switchBoardView('index','${esc(uri)}');return false"   data-view="index">Index</a>]
         </div>
       </div>
+
+      ${board.rules ? `<div id="board-rules" style="display:none;background:var(--reply-bg);border:1px solid var(--border);padding:10px 16px;margin-bottom:10px;font-size:0.83rem;white-space:pre-wrap;line-height:1.7">${esc(board.rules)}</div>` : ''}
 
       <div class="post-form-section">
         <div id="nt-form-wrap">
@@ -323,9 +437,15 @@ async function loadBoard(uri) {
           <input type="submit" value="Start a New Thread" class="submit-btn" onclick="openNewThreadForm()">
         </div>
       </div>
+
+      <div id="banner-board" style="display:none;margin:12px 0;text-align:center;width:100vw;margin-left:-24px">
+        <img src="" alt="banner" style="width:468px;height:60px;object-fit:contain;max-width:100%">
+      </div>
+
       <div id="board-content"></div>`;
 
     renderBoardContent(threads, board, uri);
+    loadBanners(uri);
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load board: ${e.message}</div>`;
   }
@@ -514,6 +634,13 @@ function threadForm(boardUri) {
             <td><input type="file" id="nt-file" accept="image/jpeg,image/png,image/gif,image/webp,video/webm,video/mp4"></td>
           </tr>
           ${captchaRowHtml('nt-captcha')}
+          ${state.session?.authenticated && state.session?.tripcode ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="nt-tripcode" style="width:auto">
+              Post with wallet tripcode (!${state.session.tripcode})
+            </label></td>
+          </tr>` : ''}
         </tbody>
       </table>
       <div class="form-note" id="nt-error"></div>
@@ -544,6 +671,7 @@ async function submitThread(boardUri) {
   try {
     const fields = { subject, body, name, sage: options === 'sage' };
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
+    if (document.getElementById('nt-tripcode')?.checked) fields.showTripcode = 'true';
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
     navigate(`/${boardUri}/${threadId}`);
   } catch (e) {
@@ -770,6 +898,13 @@ function replyFormHtml(boardUri, threadId) {
                 </td>
               </tr>
               ${captchaRowHtml('rp-captcha')}
+              ${state.session?.authenticated && state.session?.tripcode ? `<tr>
+                <td class="lbl"></td>
+                <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+                  <input type="checkbox" id="rp-tripcode" style="width:auto">
+                  Post with wallet tripcode (!${state.session.tripcode})
+                </label></td>
+              </tr>` : ''}
             </tbody>
           </table>
           <div style="padding:5px 0">
@@ -813,6 +948,13 @@ function setupQuickReply(boardUri, threadId) {
             <td><textarea id="qr-body" rows="4" style="width:100%;min-width:180px"></textarea></td>
           </tr>
           ${captchaRowHtml('qr-captcha')}
+          ${state.session?.authenticated && state.session?.tripcode ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="qr-tripcode" style="width:auto">
+              Post with wallet tripcode (!${state.session.tripcode})
+            </label></td>
+          </tr>` : ''}
         </tbody>
       </table>
       <div style="padding:5px 0">
@@ -941,6 +1083,7 @@ async function submitReply(boardUri, threadId) {
     const fields = { body, name, sage: options === 'sage' };
     if (flairVariant !== undefined) fields.flairVariant = flairVariant;
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
+    if (document.getElementById('rp-tripcode')?.checked) fields.showTripcode = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
@@ -964,6 +1107,7 @@ async function submitQR(boardUri, threadId) {
   try {
     const fields = { body, name, sage: options === 'sage' };
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
+    if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
     const { postId } = await api.post(`/posts/${boardUri}/${threadId}`, fields);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {

@@ -12,8 +12,10 @@ function adminNav(active) {
     { href: '/admin/flairs',      label: 'Flairs'      },
     { href: '/admin/polls',       label: 'Polls'       },
     { href: '/admin/wordfilter',  label: 'Word Filter' },
-    { href: '/admin/verified',      label: 'Verified'      },
-    { href: '/admin/constitution',  label: 'Constitution'  },
+    { href: '/admin/verified',        label: 'Verified'        },
+    { href: '/admin/announcements',   label: 'Announcements'   },
+    { href: '/admin/banners',         label: 'Banners'         },
+    { href: '/admin/constitution',    label: 'Constitution'    },
     { href: '/admin/danger',        label: '⚠ Danger',  danger: true }
   ];
 

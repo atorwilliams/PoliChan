@@ -66,6 +66,50 @@ app.use('/manage',      require('./routes/manage'));
 // NFT metadata + images
 app.use('/pass', require('./routes/nft'));
 
+// Public announcements API
+app.get('/api/announcements', async (_req, res) => {
+  try {
+    const Announcement = require('./models/Announcement');
+    const items = await Announcement.find({ isActive: true, boardUri: null })
+      .sort({ createdAt: -1 }).lean();
+    res.json({ announcements: items.map(a => ({ _id: a._id, text: a.text })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/announcements/:boardUri', async (req, res) => {
+  try {
+    const Announcement = require('./models/Announcement');
+    const items = await Announcement.find({
+      isActive: true,
+      $or: [{ boardUri: req.params.boardUri }, { boardUri: null }]
+    }).sort({ createdAt: -1 }).lean();
+    res.json({ announcements: items.map(a => ({ _id: a._id, text: a.text, boardUri: a.boardUri })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public banners API
+app.get('/api/banners/:boardUri', async (req, res) => {
+  try {
+    const Banner = require('./models/Banner');
+    const banners = await Banner.find({
+      $or: [{ boardUri: req.params.boardUri }, { isGlobal: true }]
+    }).lean();
+    res.json({ banners: banners.map(b => ({
+      _id:      b._id,
+      isGlobal: b.isGlobal,
+      url: b.isGlobal
+        ? `/uploads/banners/global/${b.storedName}`
+        : `/uploads/banners/${b.boardUri}/${b.storedName}`
+    }))});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Public constitution API
 app.get('/api/constitution', async (_req, res) => {
   try {

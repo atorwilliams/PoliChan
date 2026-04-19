@@ -158,7 +158,7 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
       bumpedAt: new Date(),
       ip,
       authorId:     req.session?.accountId || null,
-      tripcode:     req.session?.showTripcode ? req.session?.tripcode : null,
+      tripcode:     (req.body.showTripcode === 'true' && req.session?.tripcode) ? req.session.tripcode : null,
       flair:        postFlair,
       flairColor:   postFlairColor,
       flairBgColor: postFlairBgColor,

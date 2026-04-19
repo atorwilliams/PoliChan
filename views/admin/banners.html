@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Banners — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .banner-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .banner-item {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .banner-item img {
+      display: block;
+      max-width: 480px;
+      border: 1px solid var(--border);
+    }
+    .banner-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .section-label {
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: var(--subject);
+      margin: 20px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Banners</h1>
+  </div>
+
+  <!-- Upload form -->
+  <div class="panel">
+    <div class="panel-header">Upload Banner</div>
+    <div class="panel-body">
+      <p style="color:var(--muted);font-size:0.82rem;margin-bottom:14px">
+        Global banners: <strong>300 &times; 100 px</strong> &nbsp;|&nbsp;
+        Board-specific banners: <strong>468 &times; 60 px</strong><br>
+        Accepted formats: JPEG, PNG, GIF, WebP. Max 2 MB.
+      </p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field">
+          <label>Type</label>
+          <select id="u-type" onchange="toggleBoardSelect()">
+            <option value="global">Global (all boards)</option>
+            <option value="board">Board-specific</option>
+          </select>
+        </div>
+        <div class="field" id="u-board-wrap" style="display:none">
+          <label>Board</label>
+          <select id="u-board"></select>
+        </div>
+        <div class="field">
+          <label>Image file</label>
+          <input type="file" id="u-file" accept="image/*">
+        </div>
+        <button class="btn btn-primary" onclick="upload()">Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner list -->
+  <div class="panel">
+    <div class="panel-header">All Banners <span id="banner-count" style="color:var(--muted);font-weight:400"></span></div>
+    <div class="panel-body" id="banner-list"><div class="empty">Loading…</div></div>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/banners');
+
+  let banners = [];
+  let boards  = [];
+
+  async function load() {
+    const [bd, bn] = await Promise.all([
+      api('GET', '/admin/api/boards'),
+      api('GET', '/admin/api/banners')
+    ]);
+    boards  = bd.boards;
+    banners = bn.banners;
+
+    const sel = document.getElementById('u-board');
+    sel.innerHTML = boards.map(b => `<option value="${esc(b.uri)}">${esc(b.uri)} — ${esc(b.name)}</option>`).join('');
+
+    document.getElementById('banner-count').textContent = `(${banners.length})`;
+    render();
+  }
+
+  function toggleBoardSelect() {
+    const isBoard = document.getElementById('u-type').value === 'board';
+    document.getElementById('u-board-wrap').style.display = isBoard ? '' : 'none';
+  }
+
+  function render() {
+    const el = document.getElementById('banner-list');
+    if (!banners.length) { el.innerHTML = '<div class="empty">No banners yet.</div>'; return; }
+
+    const globals = banners.filter(b => b.isGlobal);
+    const byBoard = {};
+    for (const b of banners.filter(b => !b.isGlobal)) {
+      if (!byBoard[b.boardUri]) byBoard[b.boardUri] = [];
+      byBoard[b.boardUri].push(b);
+    }
+
+    let html = '';
+
+    if (globals.length) {
+      html += `<div class="section-label">Global (300 &times; 100)</div><div class="banner-grid">`;
+      html += globals.map(b => bannerCard(b, '/uploads/banners/global/' + b.storedName)).join('');
+      html += `</div>`;
+    }
+
+    for (const [uri, list] of Object.entries(byBoard)) {
+      html += `<div class="section-label">/${esc(uri)}/ (468 &times; 60)</div><div class="banner-grid">`;
+      html += list.map(b => bannerCard(b, `/uploads/banners/${b.boardUri}/${b.storedName}`)).join('');
+      html += `</div>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  function bannerCard(b, url) {
+    return `<div class="banner-item">
+      <img src="${esc(url)}" alt="banner">
+      <div class="banner-meta">${esc(b.originalName || b.storedName)}</div>
+      <button class="btn btn-danger btn-sm" onclick="deleteBanner('${b._id}')">Delete</button>
+    </div>`;
+  }
+
+  async function upload() {
+    const file = document.getElementById('u-file').files[0];
+    if (!file) { toast('Select a file first', true); return; }
+
+    const isGlobal = document.getElementById('u-type').value === 'global';
+    const boardUri = document.getElementById('u-board').value;
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('isGlobal', isGlobal ? 'true' : 'false');
+    if (!isGlobal) fd.append('boardUri', boardUri);
+
+    try {
+      const res = await fetch('/admin/api/banners', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      toast('Banner uploaded');
+      document.getElementById('u-file').value = '';
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function deleteBanner(id) {
+    if (!confirm('Delete this banner?')) return;
+    try {
+      await api('DELETE', '/admin/api/banners/' + id);
+      toast('Deleted');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

@@ -16,6 +16,7 @@ const boardSchema = new mongoose.Schema({
     maxThreads:       { type: Number, default: 150 },
     archiveThreshold: { type: Number, default: 10 }
   },
+  rules:       { type: String, default: '' },
   isListed:    { type: Boolean, default: true },
   // 0 = public, 1 = Constituent+, 2 = Member+, 3 = Minister only
   minTier:     { type: Number, default: 0 },

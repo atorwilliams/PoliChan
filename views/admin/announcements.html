@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Announcements — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Announcements</h1>
+  </div>
+
+  <!-- Create form -->
+  <div class="panel">
+    <div class="panel-header">New Announcement</div>
+    <div class="panel-body">
+      <div class="form-grid">
+        <div class="field span-2">
+          <label>Text</label>
+          <input type="text" id="a-text" placeholder="Site will be down for maintenance at midnight…" style="width:100%">
+        </div>
+        <div class="field">
+          <label>Board <span style="color:var(--muted);font-weight:400;text-transform:none">(leave blank for global)</span></label>
+          <select id="a-board">
+            <option value="">Global — all boards</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="create()">Post Announcement</button>
+        <span id="a-error" style="color:var(--red);font-size:0.82rem"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div class="panel">
+    <div class="panel-header">Active &amp; Recent <span id="a-count" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="a-list"><div class="empty">Loading…</div></div>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/announcements');
+
+  let announcements = [];
+
+  async function load() {
+    const [{ boards }, { announcements: items }] = await Promise.all([
+      api('GET', '/admin/api/boards'),
+      api('GET', '/admin/api/announcements')
+    ]);
+
+    const sel = document.getElementById('a-board');
+    sel.innerHTML = '<option value="">Global — all boards</option>' +
+      boards.map(b => `<option value="${esc(b.uri)}">/${esc(b.uri)}/ — ${esc(b.name)}</option>`).join('');
+
+    announcements = items;
+    document.getElementById('a-count').textContent = `(${items.length})`;
+    render();
+  }
+
+  function render() {
+    const el = document.getElementById('a-list');
+    if (!announcements.length) { el.innerHTML = '<div class="empty">No announcements.</div>'; return; }
+
+    el.innerHTML = `<table><thead><tr>
+      <th>Text</th><th>Scope</th><th>Active</th><th></th>
+    </tr></thead><tbody>` +
+    announcements.map(a => `<tr>
+      <td>${esc(a.text)}</td>
+      <td style="color:var(--muted);font-size:0.8rem">${a.boardUri ? `/${esc(a.boardUri)}/` : 'Global'}</td>
+      <td>
+        <input type="checkbox" ${a.isActive ? 'checked' : ''} onchange="toggle('${a._id}', this.checked)">
+      </td>
+      <td style="text-align:right">
+        <button class="btn btn-danger btn-sm" onclick="del('${a._id}')">Delete</button>
+      </td>
+    </tr>`).join('') + '</tbody></table>';
+  }
+
+  async function create() {
+    const text     = document.getElementById('a-text').value.trim();
+    const boardUri = document.getElementById('a-board').value || null;
+    const errEl    = document.getElementById('a-error');
+    if (!text) { errEl.textContent = 'Text is required'; return; }
+    errEl.textContent = '';
+    try {
+      await api('POST', '/admin/api/announcements', { text, boardUri });
+      document.getElementById('a-text').value = '';
+      toast('Announcement posted');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function toggle(id, isActive) {
+    try {
+      await api('PATCH', `/admin/api/announcements/${id}`, { isActive });
+    } catch (e) { toast(e.message, true); load(); }
+  }
+
+  async function del(id) {
+    if (!confirm('Delete this announcement?')) return;
+    try {
+      await api('DELETE', `/admin/api/announcements/${id}`);
+      toast('Deleted');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  load();
+</script>
+</body>
+</html>
