@@ -96,15 +96,12 @@
     const el = document.getElementById('boardList');
     if (!boards.length) { el.innerHTML = '<div class="empty">No boards yet. Create one or run the seeder.</div>'; return; }
 
-    // Group: top-level first, then children indented
-    const top      = boards.filter(b => !b.parentUri || !boards.find(p => p.uri === b.parentUri));
-    const children = boards.filter(b =>  b.parentUri &&  boards.find(p => p.uri === b.parentUri));
-
     let html = '<table><thead><tr><th>URI</th><th>Name</th><th>Description</th><th>Threads</th><th>Posts</th><th>Listed</th><th>Region Lock</th><th></th></tr></thead><tbody>';
 
-    function row(b, indent) {
+    function row(b, depth) {
+      const pad = depth > 0 ? `padding-left:${depth * 20}px` : '';
       return `<tr>
-        <td class="${indent ? 'indent' : ''}"><span class="board-uri">/${esc(b.uri)}/</span></td>
+        <td><span class="board-uri" style="${pad}">/${esc(b.uri)}/</span></td>
         <td>${esc(b.name)}</td>
         <td style="color:var(--muted)">${esc(b.description || '—')}</td>
         <td>${b.threadCount || 0}</td>
@@ -118,9 +115,18 @@
       </tr>`;
     }
 
-    for (const b of top) {
-      html += row(b, false);
-      for (const c of children.filter(c => c.parentUri === b.uri)) html += row(c, true);
+    function renderChildren(parentUri, depth) {
+      let out = '';
+      for (const b of boards.filter(b => b.parentUri === parentUri)) {
+        out += row(b, depth);
+        out += renderChildren(b.uri, depth + 1);
+      }
+      return out;
+    }
+
+    for (const b of boards.filter(b => !b.parentUri || !boards.find(p => p.uri === b.parentUri))) {
+      html += row(b, 0);
+      html += renderChildren(b.uri, 1);
     }
 
     html += '</tbody></table>';
