@@ -343,7 +343,7 @@ function renderBoardBanner() {
 
 async function loadAds(uri) {
   if ((state.session?.poliPassTier || 0) >= 2) {
-    const msg = `<div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:0.78rem;color:var(--muted);font-style:italic">No ads :)<br>Thanks for supporting PoliChan</div>`;
+    const msg = `<div style="font-size:0.78rem;color:var(--muted);font-style:italic;text-align:center">No ads :)<br>Thanks for supporting PoliChan</div>`;
     ['ad-left','ad-right'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.innerHTML = msg; el.style.display = 'flex'; }
@@ -489,7 +489,7 @@ async function loadBoard(uri) {
 
       <div class="board-header">
         <div class="board-header-top">
-          <div id="ad-left" style="display:none;flex:1;flex-direction:column;align-items:center">
+          <div id="ad-left" style="display:none;flex-direction:column;align-items:center;justify-content:center">
             <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
             <a id="ad-left-link" href="#" target="_blank" rel="noopener noreferrer">
               <img id="ad-left-img" src="" alt="ad" style="max-width:100%;height:90px;object-fit:contain">
@@ -503,7 +503,7 @@ async function loadBoard(uri) {
             <h1>${esc(board.name)}</h1>
             ${board.description ? `<div class="board-desc">${esc(board.description)}</div>` : ''}
           </div>
-          <div id="ad-right" style="display:none;flex:1;flex-direction:column;align-items:center">
+          <div id="ad-right" style="display:none;flex-direction:column;align-items:center;justify-content:center">
             <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
             <a id="ad-right-link" href="#" target="_blank" rel="noopener noreferrer">
               <img id="ad-right-img" src="" alt="ad" style="max-width:100%;height:90px;object-fit:contain">
