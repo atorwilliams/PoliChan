@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Country Flairs — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Country Flairs</h1>
+    <p style="color:var(--muted);margin-top:4px;font-size:0.85rem">
+      When a poster's country differs from the board's home country (derived from its URI prefix), their flair is automatically overridden.
+      Add named rules here — e.g. FR → GB = "Frogs". Boards with no country prefix (e.g. /pol/) are unaffected.
+      Pairs with no rule fall back to the flag emoji + country code.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Add Rule</div>
+    <div class="panel-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;align-items:end">
+        <label>
+          From Country <span style="color:var(--muted);font-size:0.8rem">(poster's country)</span><br>
+          <input id="f-from" type="text" maxlength="2" placeholder="FR" style="text-transform:uppercase;width:100%">
+        </label>
+        <label>
+          To Country <span style="color:var(--muted);font-size:0.8rem">(board's home country)</span><br>
+          <input id="f-to" type="text" maxlength="2" placeholder="GB" style="text-transform:uppercase;width:100%">
+        </label>
+        <label>
+          Flair Label<br>
+          <input id="f-label" type="text" placeholder="Frogs" style="width:100%">
+        </label>
+        <label>
+          Text Color<br>
+          <input id="f-color" type="color" value="#e2e8f0" style="width:100%;height:36px;padding:2px">
+        </label>
+        <label>
+          Background Color<br>
+          <input id="f-bgColor" type="color" value="#374151" style="width:100%;height:36px;padding:2px">
+        </label>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div id="f-preview" style="padding:2px 8px;border-radius:3px;font-size:0.8rem;white-space:nowrap;background:#374151;color:#e2e8f0">Preview</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button id="addBtn" class="btn-primary">Add Rule</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Rules <span id="ruleCount" class="dim"></span></div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table" id="rulesTable">
+        <thead>
+          <tr>
+            <th>From</th>
+            <th>→</th>
+            <th>To</th>
+            <th>Flair</th>
+            <th>Preview</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rulesList"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+<script src="/.static/js/admin-common.js"></script>
+<script>
+'use strict';
+
+adminNav('/admin/country-flairs');
+
+let rules = [];
+
+// Live color preview
+function updatePreview() {
+  const label = document.getElementById('f-label').value || 'Preview';
+  const color = document.getElementById('f-color').value;
+  const bg    = document.getElementById('f-bgColor').value;
+  const el    = document.getElementById('f-preview');
+  el.textContent = label;
+  el.style.color      = color;
+  el.style.background = bg;
+}
+
+['f-label','f-color','f-bgColor'].forEach(id =>
+  document.getElementById(id).addEventListener('input', updatePreview)
+);
+
+// Force uppercase on country inputs
+['f-from','f-to'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function() {
+    this.value = this.value.toUpperCase();
+  });
+});
+
+async function loadRules() {
+  try {
+    const data = await api('GET', '/admin/api/country-flairs');
+    rules = data.rules;
+    document.getElementById('ruleCount').textContent = `(${rules.length})`;
+    renderRules();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function renderRules() {
+  const tbody = document.getElementById('rulesList');
+  if (!rules.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No rules yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rules.map(r => `
+    <tr id="row-${r._id}">
+      <td><strong>${esc(r.fromCountry)}</strong></td>
+      <td style="color:var(--muted)">→</td>
+      <td><strong>${esc(r.toCountry)}</strong></td>
+      <td>${esc(r.label)}</td>
+      <td><span style="padding:2px 8px;border-radius:3px;font-size:0.8rem;background:${esc(r.bgColor)};color:${esc(r.color)}">${esc(r.label)}</span></td>
+      <td>
+        <button onclick="editRule('${r._id}')" class="btn-small">Edit</button>
+        <button onclick="deleteRule('${r._id}')" class="btn-small btn-danger">Delete</button>
+      </td>
+    </tr>
+    <tr id="edit-row-${r._id}" style="display:none">
+      <td colspan="6" style="padding:12px;background:var(--bg-input)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end">
+          <label>Label<br><input id="el-label-${r._id}" type="text" value="${esc(r.label)}" style="width:100%"></label>
+          <label>Text Color<br><input id="el-color-${r._id}" type="color" value="${esc(r.color)}" style="width:100%;height:36px;padding:2px"></label>
+          <label>Background<br><input id="el-bgColor-${r._id}" type="color" value="${esc(r.bgColor)}" style="width:100%;height:36px;padding:2px"></label>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <button onclick="saveEdit('${r._id}')" class="btn-primary">Save</button>
+            <button onclick="cancelEdit('${r._id}')">Cancel</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function editRule(id) {
+  document.getElementById(`edit-row-${id}`).style.display = '';
+}
+
+function cancelEdit(id) {
+  document.getElementById(`edit-row-${id}`).style.display = 'none';
+}
+
+async function saveEdit(id) {
+  const label   = document.getElementById(`el-label-${id}`).value.trim();
+  const color   = document.getElementById(`el-color-${id}`).value;
+  const bgColor = document.getElementById(`el-bgColor-${id}`).value;
+  if (!label) return toast('Label required', true);
+  try {
+    await api('PATCH', `/admin/api/country-flairs/${id}`, { label, color, bgColor });
+    toast('Saved');
+    await loadRules();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteRule(id) {
+  if (!confirm('Delete this rule?')) return;
+  try {
+    await api('DELETE', `/admin/api/country-flairs/${id}`);
+    toast('Deleted');
+    rules = rules.filter(r => r._id !== id);
+    document.getElementById('ruleCount').textContent = `(${rules.length})`;
+    renderRules();
+  } catch (err) { toast(err.message, true); }
+}
+
+document.getElementById('addBtn').addEventListener('click', async () => {
+  const fromCountry = document.getElementById('f-from').value.trim().toUpperCase();
+  const toCountry   = document.getElementById('f-to').value.trim().toUpperCase();
+  const label       = document.getElementById('f-label').value.trim();
+  const color       = document.getElementById('f-color').value;
+  const bgColor     = document.getElementById('f-bgColor').value;
+
+  if (!fromCountry || fromCountry.length !== 2) return toast('Enter a valid 2-letter from country code', true);
+  if (!toCountry   || toCountry.length   !== 2) return toast('Enter a valid 2-letter to country code', true);
+  if (!label)                                    return toast('Label is required', true);
+
+  try {
+    await api('POST', '/admin/api/country-flairs', { fromCountry, toCountry, label, color, bgColor });
+    toast('Rule added');
+    document.getElementById('f-from').value  = '';
+    document.getElementById('f-to').value    = '';
+    document.getElementById('f-label').value = '';
+    document.getElementById('f-color').value   = '#e2e8f0';
+    document.getElementById('f-bgColor').value = '#374151';
+    updatePreview();
+    await loadRules();
+  } catch (err) { toast(err.message, true); }
+});
+
+loadRules();
+</script>
+</body>
+</html>

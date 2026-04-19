@@ -71,18 +71,22 @@ async function processImage(file, boardUri) {
   const meta = await sharp(file.buffer).metadata();
   const { width, height } = meta;
 
-  // Write original (strip EXIF for images)
-  await sharp(file.buffer)
-    .rotate()                          // honour EXIF orientation then strip
-    .withMetadata({ exif: {} })        // clear EXIF
-    .toFile(storedPath);
+  if (ext === 'gif') {
+    // Write GIF directly and use it as its own thumbnail to preserve animation
+    await fs.promises.writeFile(storedPath, file.buffer);
+    await fs.promises.copyFile(storedPath, thumbPath);
+  } else {
+    await sharp(file.buffer)
+      .rotate()
+      .withMetadata({ exif: {} })
+      .toFile(storedPath);
 
-  // Write thumbnail
-  await sharp(file.buffer)
-    .rotate()
-    .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
-    .withMetadata({ exif: {} })
-    .toFile(thumbPath);
+    await sharp(file.buffer)
+      .rotate()
+      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
+      .withMetadata({ exif: {} })
+      .toFile(thumbPath);
+  }
 
   return {
     originalName: file.originalname,

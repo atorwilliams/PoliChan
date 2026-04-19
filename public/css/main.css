@@ -957,6 +957,117 @@ hr.index-divider {
   margin: 16px 0;
 }
 
+/* ── (You) tag ───────────────────────────────────────────────────────────────── */
+
+.you-tag {
+  color: #e8a020;
+  font-size: 0.8em;
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+/* ── Post hidden bar ─────────────────────────────────────────────────────────── */
+
+.post-hidden-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: var(--bg-post);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+  border-radius: 2px;
+}
+
+.post-hidden-bar a { font-size: 0.8rem; }
+
+/* ── Watched threads ─────────────────────────────────────────────────────────── */
+
+.nav-watched-link { position: relative; }
+
+.watched-count-badge {
+  font-size: 0.75em;
+  color: var(--accent);
+  margin-left: 3px;
+  font-weight: bold;
+}
+
+#watched-panel {
+  position: fixed;
+  bottom: 60px;
+  right: 16px;
+  z-index: 2000;
+  background: var(--bg-post);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 280px;
+  max-width: 360px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+#watched-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+#watched-panel-header button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 4px;
+}
+
+#watched-panel-header button:hover { color: var(--text); }
+
+#watched-panel-body {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.watched-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.watched-item:last-child { border-bottom: none; }
+
+.watched-link {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watched-board {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.watched-remove {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.watched-remove:hover { color: #e55; }
+
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {

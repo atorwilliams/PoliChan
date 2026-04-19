@@ -13,8 +13,9 @@ const counter   = require('../services/counter');
 const upload    = require('../middleware/upload');
 const captcha   = require('../middleware/captcha');
 const { floodCheck } = require('../middleware/rateLimit');
-const geoip     = require('../services/geoip');
-const config    = require('../config');
+const geoip          = require('../services/geoip');
+const CountryFlair   = require('../models/CountryFlair');
+const config         = require('../config');
 
 // GET /api/posts/:boardUri/:threadId — all posts in a thread
 router.get('/:boardUri/:threadId', async (req, res) => {
@@ -38,7 +39,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
 
     const [thread, board] = await Promise.all([
       Thread.findOne({ boardUri, threadId }),
-      Board.findOne({ uri: boardUri }).select('allowedCountries').lean()
+      Board.findOne({ uri: boardUri }).select('allowedCountries country').lean()
     ]);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
     if (thread.isLocked) return res.status(403).json({ error: 'Thread is locked' });
@@ -72,7 +73,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
     const rawIp = req.ip || req.connection.remoteAddress;
     const ip    = ipHash.hash(rawIp);
 
-    // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session/country fallback
+    // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session flair
     let postFlair        = null;
     let postFlairColor   = null;
     let postFlairBgColor = null;
@@ -98,14 +99,25 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       postFlairBgColor = req.session?.flairBgColor || null;
     }
 
-    if (!postFlair) {
+    // Country flair override — always applied when poster is foreign to the board's home country
+    {
       const posterCountry = geoip.getCountry(rawIp);
-      const boardCountry  = boardUri.split('-')[0];
-      const foreign = geoip.foreignFlair(posterCountry, boardCountry);
-      if (foreign) {
-        postFlair       = foreign.label;
-        postFlairColor  = foreign.color;
-        postFlairBgColor = foreign.bgColor;
+      const homeCountry   = (board?.country || '').toUpperCase();
+      if (posterCountry && homeCountry && posterCountry !== homeCountry) {
+        const rule = await CountryFlair.findOne({
+          fromCountry: posterCountry,
+          toCountry:   homeCountry
+        }).lean();
+        if (rule) {
+          postFlair        = rule.label;
+          postFlairColor   = rule.color;
+          postFlairBgColor = rule.bgColor;
+        } else {
+          const { toFlag } = geoip;
+          postFlair        = `${toFlag(posterCountry)} ${posterCountry}`;
+          postFlairColor   = '#e2e8f0';
+          postFlairBgColor = '#374151';
+        }
       }
     }
 

@@ -48,4 +48,4 @@ function foreignFlair(posterCountry, boardCountry) {
   };
 }
 
-module.exports = { getCountry, foreignFlair };
+module.exports = { getCountry, foreignFlair, toFlag };

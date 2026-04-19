@@ -13,8 +13,9 @@ const counter   = require('../services/counter');
 const upload    = require('../middleware/upload');
 const captcha   = require('../middleware/captcha');
 const { floodCheck } = require('../middleware/rateLimit');
-const geoip     = require('../services/geoip');
-const config    = require('../config');
+const geoip        = require('../services/geoip');
+const CountryFlair = require('../models/CountryFlair');
+const config       = require('../config');
 
 // GET /api/threads/:boardUri — thread list (catalog or index view)
 // ?preview=N  (1–5) attaches the last N replies as thread.lastPosts for index view
@@ -109,7 +110,7 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
     const rawIp = req.ip || req.connection.remoteAddress;
     const ip    = ipHash.hash(rawIp);
 
-    // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session/country fallback
+    // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session flair
     let postFlair        = null;
     let postFlairColor   = null;
     let postFlairBgColor = null;
@@ -135,14 +136,24 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
       postFlairBgColor = req.session?.flairBgColor || null;
     }
 
-    if (!postFlair) {
+    // Country flair override — always applied when poster is foreign to the board's home country
+    {
       const posterCountry = geoip.getCountry(rawIp);
-      const boardCountry  = board.uri.split('-')[0];
-      const foreign = geoip.foreignFlair(posterCountry, boardCountry);
-      if (foreign) {
-        postFlair       = foreign.label;
-        postFlairColor  = foreign.color;
-        postFlairBgColor = foreign.bgColor;
+      const homeCountry   = (board.country || '').toUpperCase();
+      if (posterCountry && homeCountry && posterCountry !== homeCountry) {
+        const rule = await CountryFlair.findOne({
+          fromCountry: posterCountry,
+          toCountry:   homeCountry
+        }).lean();
+        if (rule) {
+          postFlair        = rule.label;
+          postFlairColor   = rule.color;
+          postFlairBgColor = rule.bgColor;
+        } else {
+          postFlair        = `${geoip.toFlag(posterCountry)} ${posterCountry}`;
+          postFlairColor   = '#e2e8f0';
+          postFlairBgColor = '#374151';
+        }
       }
     }
 

@@ -172,6 +172,7 @@ function renderNav(activePath) {
       <a href="/pass" ${activePath === '/pass' ? 'class="active"' : ''}>PoliPass</a>
       <a href="/wall" ${activePath === '/wall' ? 'class="active"' : ''}>Wall</a>
       <a href="/constitution" ${activePath === '/constitution' ? 'class="active"' : ''}>Constitution</a>
+      <a href="#" onclick="openWatchedPanel();return false" class="nav-watched-link">Watching<span id="watched-count" class="watched-count-badge"></span></a>
     </div>
     <div class="nav-right">
       ${tierBadge}
@@ -181,6 +182,7 @@ function renderNav(activePath) {
   `;
 
   document.getElementById('walletBtn').addEventListener('click', handleWalletClick);
+  updateWatchedIndicator();
 }
 
 // ── Wallet / Auth ─────────────────────────────────────────────────────────────
@@ -406,6 +408,93 @@ async function loadAds(uri) {
       }
     } catch (_) {}
   }
+}
+
+// ── User state (localStorage) ─────────────────────────────────────────────────
+
+const _yourPosts   = new Set(JSON.parse(localStorage.getItem('your_posts')   || '[]'));
+const _hiddenPosts = new Set(JSON.parse(localStorage.getItem('hidden_posts') || '[]'));
+let   _watched     = JSON.parse(localStorage.getItem('watched_threads') || '{}');
+
+function _saveYours()   { localStorage.setItem('your_posts',      JSON.stringify([..._yourPosts])); }
+function _saveHidden()  { localStorage.setItem('hidden_posts',    JSON.stringify([..._hiddenPosts])); }
+function _saveWatched() { localStorage.setItem('watched_threads', JSON.stringify(_watched)); }
+
+function addYourPost(id) { _yourPosts.add(String(id)); _saveYours(); }
+
+function watchThread(uri, threadId, title, replyCount) {
+  _watched[`${uri}:${threadId}`] = { uri, threadId, title, seenCount: replyCount };
+  _saveWatched();
+  updateWatchedIndicator();
+}
+function unwatchThread(uri, threadId) {
+  delete _watched[`${uri}:${threadId}`];
+  _saveWatched();
+  updateWatchedIndicator();
+}
+function markThreadSeen(uri, threadId, replyCount) {
+  const w = _watched[`${uri}:${threadId}`];
+  if (w) { w.seenCount = replyCount; _saveWatched(); }
+}
+
+function toggleWatch(uri, threadId, title, replyCount) {
+  if (_watched[`${uri}:${threadId}`]) {
+    unwatchThread(uri, threadId);
+  } else {
+    watchThread(uri, threadId, title, replyCount);
+  }
+  const link = document.getElementById('watch-link');
+  if (link) link.textContent = _watched[`${uri}:${threadId}`] ? 'Unwatch' : 'Watch';
+}
+
+function updateWatchedIndicator() {
+  const el = document.getElementById('watched-count');
+  if (el) {
+    const n = Object.keys(_watched).length;
+    el.textContent = n > 0 ? `(${n})` : '';
+  }
+}
+
+function togglePostHide(id) {
+  const wrap = document.getElementById('ph-' + id);
+  const post = document.getElementById('p' + id);
+  if (!wrap || !post) return;
+  if (_hiddenPosts.has(String(id))) {
+    _hiddenPosts.delete(String(id));
+    _saveHidden();
+    wrap.style.display = 'none';
+    post.style.display = '';
+  } else {
+    _hiddenPosts.add(String(id));
+    _saveHidden();
+    wrap.style.display = 'flex';
+    post.style.display = 'none';
+  }
+}
+
+function openWatchedPanel() {
+  const existing = document.getElementById('watched-panel');
+  if (existing) { existing.remove(); return; }
+
+  const entries = Object.values(_watched);
+  if (!entries.length) return;
+
+  const panel = document.createElement('div');
+  panel.id = 'watched-panel';
+  panel.innerHTML = `
+    <div id="watched-panel-header">
+      <span>Watched Threads</span>
+      <button onclick="document.getElementById('watched-panel').remove()">✕</button>
+    </div>
+    <div id="watched-panel-body">
+      ${entries.map(w => `
+        <div class="watched-item">
+          <a href="/${w.uri}/${w.threadId}" data-nav class="watched-link">${esc(w.title || '#' + w.threadId)}</a>
+          <span class="watched-board">/${w.uri}/</span>
+          <a href="#" onclick="unwatchThread('${w.uri}',${w.threadId});this.closest('.watched-item').remove();return false" class="watched-remove">✕</a>
+        </div>`).join('')}
+    </div>`;
+  document.body.appendChild(panel);
 }
 
 // ── Board rules toggle ────────────────────────────────────────────────────────
@@ -764,6 +853,8 @@ async function submitThread(boardUri) {
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('nt-tripcode')?.checked) fields.showTripcode = 'true';
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
+    addYourPost(threadId);
+    watchThread(boardUri, threadId, subject || body.slice(0, 60), 0);
     navigate(`/${boardUri}/${threadId}`);
   } catch (e) {
     errEl.textContent = e.message;
@@ -796,6 +887,7 @@ async function loadThread(boardUri, threadId) {
         <a href="/${esc(board.uri)}/" data-nav>/${esc(board.uri)}/</a>
         <span class="sep">›</span>
         <span>#${thread.threadId}</span>
+        <span id="watch-btn" style="margin-left:auto;font-size:0.8rem">[<a href="#" onclick="toggleWatch('${boardUri}',${threadId},'${esc((thread.subject||'#'+thread.threadId).replace(/'/g,"\\'"))}',${posts.length});return false" id="watch-link">${_watched[`${boardUri}:${threadId}`] ? 'Unwatch' : 'Watch'}</a>]</span>
       </div>
       <div class="thread-view">
         ${renderPost(thread, boardUri, true)}
@@ -811,6 +903,8 @@ async function loadThread(boardUri, threadId) {
     setupQuickReply(boardUri, threadId);
     renderCaptchaIn('rp-captcha');
     loadFlairPicker();
+    markThreadSeen(boardUri, threadId, posts.length);
+    updateWatchedIndicator();
 
     // Scroll to anchor if present (e.g. navigated via cross-board >>quote)
     if (location.hash) {
@@ -862,20 +956,37 @@ function renderPost(post, boardUri, isOp) {
     isOp && post.bumpLimit  ? '<span class="badge-bump-limit">[Bump Limit]</span>' : ''
   ].filter(Boolean).join(' ');
 
+  const isYou    = _yourPosts.has(String(id));
+  const isHidden = _hiddenPosts.has(String(id));
+
+  // Inject (You) into bodyHtml quotelinks
+  let bodyHtml = post.bodyHtml || esc(post.body);
+  bodyHtml = bodyHtml.replace(/class="quotelink" href="[^"]*#p(\d+)"/g, (match, qid) =>
+    _yourPosts.has(qid) ? match.replace('class="quotelink"', 'class="quotelink you-quoted"') : match
+  );
+  bodyHtml = bodyHtml.replace(/(<a class="quotelink you-quoted"[^>]*>>(\d+)<\/a>)/g,
+    '$1<span class="you-tag"> (You)</span>'
+  );
+
   const postEl = `
-    <div class="post ${isOp ? 'op' : 'reply'} ${post.isModPost ? 'mod-post' : ''}" id="p${id}">
+    <div id="ph-${id}" class="post-hidden-bar" style="display:${isHidden ? 'flex' : 'none'}">
+      <span class="post-hidden-label">Post hidden</span>
+      <a href="#" onclick="togglePostHide(${id});return false" class="post-action">[Show]</a>
+    </div>
+    <div class="post ${isOp ? 'op' : 'reply'} ${post.isModPost ? 'mod-post' : ''}" id="p${id}" style="${isHidden ? 'display:none' : ''}">
       ${mediaHtml}
       <div class="postInfo">
         ${subjectHtml}<span class="post-name">${esc(post.name || 'Anonymous')}</span>${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
         <span class="post-date">${formatDate(post.createdAt)}</span>
-        <span class="post-no">No.<a class="post-id" href="#p${id}" onclick="quotePost(${id},'${boardUri}',${post.threadId});return false">${id}</a></span>
+        <span class="post-no">No.<a class="post-id" href="#p${id}" onclick="quotePost(${id},'${boardUri}',${post.threadId});return false">${id}</a>${isYou ? '<span class="you-tag"> (You)</span>' : ''}</span>
         ${isOp ? '<span class="post-reply-wrap">[<a class="post-inline-link" href="#rp-form" onclick="document.getElementById(\'rp-form-wrap\').style.display=\'block\';document.getElementById(\'rp-body\').focus();return false">Reply</a>]</span>' : ''}
         ${badges}
       </div>
-      <blockquote class="postMessage">${post.bodyHtml || esc(post.body)}</blockquote>
+      <blockquote class="postMessage">${bodyHtml}</blockquote>
       ${isOp && post.poll ? renderPoll(post.poll, boardUri, post.threadId) : ''}
       <div class="post-footer">
         [<a class="post-action" onclick="quotePost(${id},'${boardUri}',${post.threadId})">Reply</a>]
+        [<a class="post-action" onclick="togglePostHide(${id})">Hide</a>]
         [<a class="post-action" onclick="reportPost('${boardUri}', ${post.threadId}, ${isOp ? 'null' : id})">Report</a>]
         ${(state.session?.isAdmin || state.session?.staffRole)
           ? `<span class="mod-controls">
@@ -891,7 +1002,7 @@ function renderPost(post, boardUri, isOp) {
       </div>
     </div>`;
 
-  return isOp ? postEl : `<div class="reply-container">${postEl}</div>`;
+  return isOp ? postEl : `<div class="reply-container" id="rc-${id}">${postEl}</div>`;
 }
 
 function renderMedia(media, boardUri) {
@@ -1176,6 +1287,8 @@ async function submitReply(boardUri, threadId) {
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('rp-tripcode')?.checked) fields.showTripcode = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
+    addYourPost(postId);
+    if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
     errEl.textContent = e.message;
@@ -1200,6 +1313,8 @@ async function submitQR(boardUri, threadId) {
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
     const { postId } = await api.post(`/posts/${boardUri}/${threadId}`, fields);
+    addYourPost(postId);
+    if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
     errEl.textContent = e.message;

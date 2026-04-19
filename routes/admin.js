@@ -15,6 +15,7 @@ const SiteConfig    = require('../models/SiteConfig');
 const Banner        = require('../models/Banner');
 const Announcement  = require('../models/Announcement');
 const Advertiser    = require('../models/Advertiser');
+const CountryFlair  = require('../models/CountryFlair');
 const multer     = require('multer');
 const markup     = require('../services/markup');
 const { requireAdmin, issueToken } = require('../middleware/auth');
@@ -103,6 +104,54 @@ router.get('/constitution',    view('constitution'));
 router.get('/banners',         view('banners'));
 router.get('/announcements',   view('announcements'));
 router.get('/ads',             view('ads'));
+router.get('/country-flairs',  view('country-flairs'));
+
+// ── Country Flairs ────────────────────────────────────────────────────────────
+
+router.get('/api/country-flairs', requireAdmin, async (req, res) => {
+  try {
+    const rules = await CountryFlair.find().sort({ toCountry: 1, fromCountry: 1 }).lean();
+    res.json({ rules });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/api/country-flairs', requireAdmin, async (req, res) => {
+  try {
+    const { fromCountry, toCountry, label, color, bgColor } = req.body;
+    if (!fromCountry || !toCountry || !label) return res.status(400).json({ error: 'fromCountry, toCountry, and label are required' });
+    const rule = await CountryFlair.create({
+      fromCountry: fromCountry.toUpperCase().trim(),
+      toCountry:   toCountry.toUpperCase().trim(),
+      label:       label.trim(),
+      color:       color   || '#e2e8f0',
+      bgColor:     bgColor || '#374151'
+    });
+    res.json({ rule });
+  } catch (err) {
+    if (err.code === 11000) return res.status(400).json({ error: 'Rule for that country pair already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/country-flairs/:id', requireAdmin, async (req, res) => {
+  try {
+    const { label, color, bgColor } = req.body;
+    const rule = await CountryFlair.findByIdAndUpdate(
+      req.params.id,
+      { label: label?.trim(), color, bgColor },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!rule) return res.status(404).json({ error: 'Not found' });
+    res.json({ rule });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/api/country-flairs/:id', requireAdmin, async (req, res) => {
+  try {
+    await CountryFlair.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── Boards ────────────────────────────────────────────────────────────────────
 
