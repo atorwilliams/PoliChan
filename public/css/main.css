@@ -960,7 +960,7 @@ hr.index-divider {
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
-  #ad-sidebar { display: none !important; }
+  #ad-sidebar { display: none; }
 }
 
 @media (max-width: 680px) {

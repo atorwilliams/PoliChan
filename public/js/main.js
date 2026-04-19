@@ -341,76 +341,71 @@ function renderBoardBanner() {
 
 // ── Ads ───────────────────────────────────────────────────────────────────────
 
+function adSlotHtml(ad, imgStyle) {
+  return `
+    <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
+    <a href="#" data-adv="${ad.advertiserId}" data-adid="${ad.adId}" data-url="${esc(ad.clickUrl)}" target="_blank" rel="noopener noreferrer" onclick="handleAdClick(event,this)">
+      <img src="${esc(ad.imageUrl)}" alt="ad" style="${imgStyle}">
+    </a>`;
+}
+
+function handleAdClick(e, a) {
+  e.preventDefault();
+  fetch(`/api/ads/${a.dataset.adv}/${a.dataset.adid}/click`, { method: 'POST' }).catch(() => {});
+  window.open(a.dataset.url, '_blank', 'noopener,noreferrer');
+}
+
 async function loadAds(uri) {
-  if ((state.session?.poliPassTier || 0) >= 2) {
-    const msg = `<div style="font-size:0.78rem;color:var(--muted);font-style:italic;text-align:center">No ads :)<br>Thanks for supporting PoliChan</div>`;
-    ['ad-left','ad-right'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.innerHTML = msg; el.style.display = 'flex'; }
-    });
-    const sidebar = document.getElementById('ad-sidebar');
-    if (sidebar) sidebar.style.display = 'none';
-    return;
-  }
+  const isMember = (state.session?.poliPassTier || 0) >= 2;
+  const noAdMsg = `<div style="font-size:0.78rem;color:var(--muted);font-style:italic;text-align:center">No ads :)<br>Thanks for supporting PoliChan</div>`;
 
-  const slots = [
-    { type: 'header', elId: 'ad-left',   imgId: 'ad-left-img',   linkId: 'ad-left-link'  },
-    { type: 'header', elId: 'ad-right',  imgId: 'ad-right-img',  linkId: 'ad-right-link' },
-    { type: 'footer', elId: 'ad-footer', imgId: 'ad-footer-img', linkId: 'ad-footer-link'},
-  ];
-
-  for (const s of slots.filter(s => s.type === 'header')) {
+  for (const elId of ['ad-left', 'ad-right']) {
+    const slot = document.getElementById(elId);
+    if (!slot) continue;
+    if (isMember) { slot.innerHTML = noAdMsg; continue; }
     try {
       const { ad } = await fetch(`/api/ads/${uri}?type=header`).then(r => r.json());
-      const slot = document.getElementById(s.elId);
-      if (!slot) continue;
-      if (!ad) { slot.style.display = 'none'; continue; }
-      slot.style.display = 'flex';
-      document.getElementById(s.imgId).src = ad.imageUrl;
-      fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
-      document.getElementById(s.linkId).onclick = (e) => {
-        e.preventDefault();
-        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/click`, { method: 'POST' }).catch(() => {});
-        window.open(ad.clickUrl, '_blank', 'noopener,noreferrer');
-      };
+      if (ad) {
+        slot.innerHTML = adSlotHtml(ad, 'max-width:100%;max-height:90px;object-fit:contain;display:block');
+        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+      }
     } catch (_) {}
   }
 
-  try {
-    const { ad } = await fetch(`/api/ads/${uri}?type=footer`).then(r => r.json());
-    const slot = document.getElementById('ad-footer');
-    if (slot) {
-      if (!ad) { slot.style.display = 'none'; }
-      else {
-        slot.style.display = 'block';
-        document.getElementById('ad-footer-img').src = ad.imageUrl;
-        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
-        document.getElementById('ad-footer-link').onclick = (e) => {
-          e.preventDefault();
-          fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/click`, { method: 'POST' }).catch(() => {});
-          window.open(ad.clickUrl, '_blank', 'noopener,noreferrer');
-        };
-      }
+  const footerSlot = document.getElementById('ad-footer');
+  if (footerSlot) {
+    if (!isMember) {
+      try {
+        const { ad } = await fetch(`/api/ads/${uri}?type=footer`).then(r => r.json());
+        if (ad) {
+          footerSlot.innerHTML = `
+            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
+            <a href="#" data-adv="${ad.advertiserId}" data-adid="${ad.adId}" data-url="${esc(ad.clickUrl)}" onclick="handleAdClick(event,this)">
+              <img src="${esc(ad.imageUrl)}" alt="ad" style="width:300px;height:250px;object-fit:contain">
+            </a>`;
+          footerSlot.style.display = 'block';
+          fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+        }
+      } catch (_) {}
     }
-  } catch (_) {}
+  }
 
-  try {
-    const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
-    const slot = document.getElementById('ad-sidebar');
-    if (slot) {
-      if (!ad) { slot.style.display = 'none'; }
-      else {
-        slot.style.display = 'flex';
-        document.getElementById('ad-sidebar-img').src = ad.imageUrl;
+  const sidebarSlot = document.getElementById('ad-sidebar');
+  if (sidebarSlot) {
+    if (isMember) { sidebarSlot.style.display = 'none'; return; }
+    try {
+      const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
+      if (ad) {
+        sidebarSlot.innerHTML = `
+          <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
+          <a href="#" data-adv="${ad.advertiserId}" data-adid="${ad.adId}" data-url="${esc(ad.clickUrl)}" onclick="handleAdClick(event,this)">
+            <img src="${esc(ad.imageUrl)}" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
+          </a>`;
+        sidebarSlot.style.display = 'flex';
         fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
-        document.getElementById('ad-sidebar-link').onclick = (e) => {
-          e.preventDefault();
-          fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/click`, { method: 'POST' }).catch(() => {});
-          window.open(ad.clickUrl, '_blank', 'noopener,noreferrer');
-        };
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 }
 
 // ── Board rules toggle ────────────────────────────────────────────────────────
@@ -489,12 +484,7 @@ async function loadBoard(uri) {
 
       <div class="board-header">
         <div class="board-header-top">
-          <div id="ad-left" style="display:none;flex-direction:column;align-items:center;justify-content:center">
-            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
-            <a id="ad-left-link" href="#" target="_blank" rel="noopener noreferrer">
-              <img id="ad-left-img" src="" alt="ad" style="width:280px;height:90px;object-fit:contain">
-            </a>
-          </div>
+          <div id="ad-left" style="display:flex;flex-direction:column;align-items:center;justify-content:center"></div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center">
             <div id="banner-global" style="display:none">
               <img src="" alt="banner" style="width:300px;height:100px;object-fit:contain">
@@ -503,12 +493,7 @@ async function loadBoard(uri) {
             <h1>${esc(board.name)}</h1>
             ${board.description ? `<div class="board-desc">${esc(board.description)}</div>` : ''}
           </div>
-          <div id="ad-right" style="display:none;flex-direction:column;align-items:center;justify-content:center">
-            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
-            <a id="ad-right-link" href="#" target="_blank" rel="noopener noreferrer">
-              <img id="ad-right-img" src="" alt="ad" style="width:280px;height:90px;object-fit:contain">
-            </a>
-          </div>
+          <div id="ad-right" style="display:flex;flex-direction:column;align-items:center;justify-content:center"></div>
         </div>
         <div class="board-actions">
           ${board.rules ? `[<a href="#" onclick="toggleBoardRules();return false">Rules</a>]` : ''}
