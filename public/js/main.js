@@ -492,7 +492,7 @@ async function loadBoard(uri) {
           <div id="ad-left" style="display:none;flex-direction:column;align-items:center;justify-content:center">
             <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
             <a id="ad-left-link" href="#" target="_blank" rel="noopener noreferrer">
-              <img id="ad-left-img" src="" alt="ad" style="max-width:100%;height:90px;object-fit:contain">
+              <img id="ad-left-img" src="" alt="ad" style="width:280px;height:90px;object-fit:contain">
             </a>
           </div>
           <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center">
@@ -506,7 +506,7 @@ async function loadBoard(uri) {
           <div id="ad-right" style="display:none;flex-direction:column;align-items:center;justify-content:center">
             <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
             <a id="ad-right-link" href="#" target="_blank" rel="noopener noreferrer">
-              <img id="ad-right-img" src="" alt="ad" style="max-width:100%;height:90px;object-fit:contain">
+              <img id="ad-right-img" src="" alt="ad" style="width:280px;height:90px;object-fit:contain">
             </a>
           </div>
         </div>
@@ -534,14 +534,14 @@ async function loadBoard(uri) {
 
       <div id="board-content"></div>
 
-      <div id="ad-sidebar" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:10;flex-direction:column;align-items:center;gap:4px;width:160px">
+      <div id="ad-sidebar" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:1000;flex-direction:column;align-items:center;gap:4px;width:160px">
         <div style="font-size:0.68rem;color:var(--muted)">Sponsored</div>
         <a id="ad-sidebar-link" href="#" target="_blank" rel="noopener noreferrer">
           <img id="ad-sidebar-img" src="" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
         </a>
       </div>
 
-      <div id="ad-footer" style="display:none;margin:16px 0;text-align:center">
+      <div id="ad-footer" style="display:none;margin:16px 0;width:100vw;margin-left:-24px;text-align:center">
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
         <a id="ad-footer-link" href="#" target="_blank" rel="noopener noreferrer">
           <img id="ad-footer-img" src="" alt="ad" style="width:300px;height:250px;object-fit:contain;max-width:100%">
