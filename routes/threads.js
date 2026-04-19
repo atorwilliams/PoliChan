@@ -151,7 +151,7 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
           postFlairColor   = rule.color;
           postFlairBgColor = rule.bgColor;
         } else {
-          postFlair        = `${geoip.toFlag(posterCountry)} ${posterCountry}`;
+          postFlair        = posterCountry;
           postFlairColor   = '#e2e8f0';
           postFlairBgColor = '#374151';
         }

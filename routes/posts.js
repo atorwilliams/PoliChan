@@ -114,8 +114,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
           postFlairColor   = rule.color;
           postFlairBgColor = rule.bgColor;
         } else {
-          const { toFlag } = geoip;
-          postFlair        = `${toFlag(posterCountry)} ${posterCountry}`;
+          postFlair        = posterCountry;
           postFlairColor   = '#e2e8f0';
           postFlairBgColor = '#374151';
         }

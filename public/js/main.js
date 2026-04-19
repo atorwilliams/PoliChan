@@ -127,7 +127,7 @@ window.addEventListener('popstate', route);
 document.addEventListener('click', e => {
   // SPA nav links
   const a = e.target.closest('a[data-nav]');
-  if (a) { e.preventDefault(); navigate(a.getAttribute('href')); return; }
+  if (a) { e.preventDefault(); closeNavMenu(); navigate(a.getAttribute('href')); return; }
 
   // Quotelink cross-thread resolution
   const ql = e.target.closest('.quotelink');
@@ -167,22 +167,31 @@ function renderNav(activePath) {
 
   nav.innerHTML = `
     <a class="brand" href="/" data-nav>Poli<span>Chan</span></a>
-    <div class="nav-links">
+    <div class="nav-links" id="nav-links">
       <a href="/" data-nav ${activePath === '/' ? 'class="active"' : ''}>Boards</a>
       <a href="/pass" ${activePath === '/pass' ? 'class="active"' : ''}>PoliPass</a>
       <a href="/wall" ${activePath === '/wall' ? 'class="active"' : ''}>Wall</a>
       <a href="/constitution" ${activePath === '/constitution' ? 'class="active"' : ''}>Constitution</a>
-      <a href="#" onclick="openWatchedPanel();return false" class="nav-watched-link">Watching<span id="watched-count" class="watched-count-badge"></span></a>
+      <a href="#" onclick="openWatchedPanel();closeNavMenu();return false" class="nav-watched-link">Watching<span id="watched-count" class="watched-count-badge"></span></a>
     </div>
     <div class="nav-right">
       ${tierBadge}
       ${session?.isAdmin ? '<a href="/admin" style="color:#ffaaaa;font-size:0.82rem;text-decoration:none;font-weight:bold">Admin</a>' : ''}
       <button id="walletBtn" class="${session?.authenticated ? 'connected' : ''}">${walletLabel}</button>
+      <button id="nav-toggle" aria-label="Menu" onclick="toggleNavMenu()">☰</button>
     </div>
   `;
 
   document.getElementById('walletBtn').addEventListener('click', handleWalletClick);
   updateWatchedIndicator();
+}
+
+function toggleNavMenu() {
+  document.getElementById('nav-links')?.classList.toggle('open');
+}
+
+function closeNavMenu() {
+  document.getElementById('nav-links')?.classList.remove('open');
 }
 
 // ── Wallet / Auth ─────────────────────────────────────────────────────────────
@@ -739,8 +748,7 @@ function renderIndexOP(t, uri) {
   const sourceHtml   = t.sourceTag
     ? `<span class="post-source-tag source-tier-${t.sourceTag.tier}">[${tierLabels[t.sourceTag.tier] || ''}]</span>`
     : '';
-  const flairStyle   = t.flair ? `style="background:${esc(t.flairBgColor||'#555')};color:${esc(t.flairColor||'#fff')}"` : '';
-  const flairHtml    = t.flair    ? `<span class="post-flair" ${flairStyle}>${esc(t.flair)}</span>` : '';
+  const flairHtml    = flairHtmlFor(t.flair, t.flairColor, t.flairBgColor);
   const tripcodeHtml = t.tripcode ? `<span class="post-tripcode">!${esc(t.tripcode)}</span>` : '';
   const modHtml      = t.isModPost ? `<span class="post-mod-label"> ## Mod</span>` : '';
   const subjectHtml  = t.subject  ? `<span class="post-subject">${esc(t.subject)} </span>` : '';
@@ -942,10 +950,7 @@ function renderPost(post, boardUri, isOp) {
     ? `<span class="post-source-tag source-tier-${post.sourceTag.tier}">[${tierLabels[post.sourceTag.tier] || ''}]</span>`
     : '';
 
-  const flairStyle   = post.flair
-    ? `style="background:${esc(post.flairBgColor || '#555')};color:${esc(post.flairColor || '#fff')}"`
-    : '';
-  const flairHtml    = post.flair    ? `<span class="post-flair" ${flairStyle}>${esc(post.flair)}</span>` : '';
+  const flairHtml    = flairHtmlFor(post.flair, post.flairColor, post.flairBgColor);
   const tripcodeHtml = post.tripcode ? `<span class="post-tripcode">!${esc(post.tripcode)}</span>` : '';
   const modHtml      = post.isModPost ? `<span class="post-mod-label"> ## Mod</span>` : '';
   const subjectHtml  = post.subject  ? `<span class="post-subject">${esc(post.subject)} </span>` : '';
@@ -1398,6 +1403,17 @@ async function reportPost(boardUri, threadId, postId) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function flairHtmlFor(label, color, bgColor) {
+  if (!label) return '';
+  const style = `style="background:${esc(bgColor||'#555')};color:${esc(color||'#fff')}"`;
+  const isCountryCode = /^[A-Z]{2}$/.test(label);
+  if (isCountryCode) {
+    const flag = `<img src="https://flagcdn.com/16x12/${label.toLowerCase()}.png" width="16" height="12" alt="" style="vertical-align:middle;margin-right:3px;border-radius:1px">`;
+    return `<span class="post-flair" ${style}>${flag}${esc(label)}</span>`;
+  }
+  return `<span class="post-flair" ${style}>${esc(label)}</span>`;
+}
 
 function esc(str) {
   if (!str) return '';
