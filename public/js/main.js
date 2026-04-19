@@ -3,37 +3,37 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const state = {
-  session:         null,
-  currentBoard:    null,
-  currentThread:   null,
-  boardThreads:    null,
-  boardView:       localStorage.getItem('boardView') || 'catalog',
-  hcaptchaSiteKey: null,
-  _pendingQuote:   null
+  session:          null,
+  currentBoard:     null,
+  currentThread:    null,
+  boardThreads:     null,
+  boardView:        localStorage.getItem('boardView') || 'catalog',
+  turnstileSiteKey: null,
+  _pendingQuote:    null
 };
 
-// ── hCaptcha ──────────────────────────────────────────────────────────────────
+// ── Turnstile ─────────────────────────────────────────────────────────────────
 
-let _hcaptchaReady = false;
-const _hcaptchaQueue = [];
+let _turnstileReady = false;
+const _turnstileQueue = [];
 
-window.onHcaptchaLoad = function () {
-  _hcaptchaReady = true;
-  _hcaptchaQueue.forEach(fn => fn());
-  _hcaptchaQueue.length = 0;
+window.onTurnstileLoad = function () {
+  _turnstileReady = true;
+  _turnstileQueue.forEach(fn => fn());
+  _turnstileQueue.length = 0;
 };
 
 function _whenCaptchaReady(fn) {
-  if (_hcaptchaReady) fn(); else _hcaptchaQueue.push(fn);
+  if (_turnstileReady) fn(); else _turnstileQueue.push(fn);
 }
 
 function captchaWidget(id) {
-  if (!state.hcaptchaSiteKey) return '';
+  if (!state.turnstileSiteKey) return '';
   return `<div id="${id}" style="margin-top:6px"></div>`;
 }
 
 function captchaRowHtml(id) {
-  if (!state.hcaptchaSiteKey || state.session?.authenticated) return '';
+  if (!state.turnstileSiteKey || state.session?.authenticated) return '';
   return `<tr>
     <td class="lbl">Verification</td>
     <td>${captchaWidget(id)}</td>
@@ -41,12 +41,12 @@ function captchaRowHtml(id) {
 }
 
 function renderCaptchaIn(containerId) {
-  if (!state.hcaptchaSiteKey || state.session?.authenticated) return;
+  if (!state.turnstileSiteKey || state.session?.authenticated) return;
   _whenCaptchaReady(() => {
     const el = document.getElementById(containerId);
     if (!el || el.dataset.renderId !== undefined) return;
-    const wid = hcaptcha.render(el, {
-      sitekey: state.hcaptchaSiteKey,
+    const wid = turnstile.render(el, {
+      sitekey: state.turnstileSiteKey,
       theme:   'dark',
       size:    'normal'
     });
@@ -55,16 +55,16 @@ function renderCaptchaIn(containerId) {
 }
 
 function getCaptchaToken(containerId) {
-  if (!state.hcaptchaSiteKey) return null;
+  if (!state.turnstileSiteKey) return null;
   const el = document.getElementById(containerId);
   if (!el || el.dataset.renderId === undefined) return null;
-  return hcaptcha.getResponse(el.dataset.renderId) || null;
+  return turnstile.getResponse(el.dataset.renderId) || null;
 }
 
 function resetCaptcha(containerId) {
-  if (!state.hcaptchaSiteKey) return;
+  if (!state.turnstileSiteKey) return;
   const el = document.getElementById(containerId);
-  if (el?.dataset.renderId !== undefined) hcaptcha.reset(el.dataset.renderId);
+  if (el?.dataset.renderId !== undefined) turnstile.reset(el.dataset.renderId);
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -532,7 +532,7 @@ async function submitThread(boardUri) {
   if (!fileInput?.files?.[0]) { errEl.textContent = 'An image or file is required to start a thread.'; return; }
 
   const captchaToken = getCaptchaToken('nt-captcha');
-  if (state.hcaptchaSiteKey && !state.session?.authenticated && !captchaToken) {
+  if (state.turnstileSiteKey && !state.session?.authenticated && !captchaToken) {
     errEl.textContent = 'Please complete the captcha.'; return;
   }
   errEl.textContent = '';
@@ -542,7 +542,7 @@ async function submitThread(boardUri) {
 
   try {
     const fields = { subject, body, name, sage: options === 'sage' };
-    if (captchaToken) fields['h-captcha-response'] = captchaToken;
+    if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
     navigate(`/${boardUri}/${threadId}`);
   } catch (e) {
@@ -927,7 +927,7 @@ async function submitReply(boardUri, threadId) {
   if (!body) { errEl.textContent = 'A comment is required.'; return; }
 
   const captchaToken = getCaptchaToken('rp-captcha');
-  if (state.hcaptchaSiteKey && !state.session?.authenticated && !captchaToken) {
+  if (state.turnstileSiteKey && !state.session?.authenticated && !captchaToken) {
     errEl.textContent = 'Please complete the captcha.'; return;
   }
   errEl.textContent = '';
@@ -939,7 +939,7 @@ async function submitReply(boardUri, threadId) {
     const flairVariant = document.getElementById('rp-flair')?.value;
     const fields = { body, name, sage: options === 'sage' };
     if (flairVariant !== undefined) fields.flairVariant = flairVariant;
-    if (captchaToken) fields['h-captcha-response'] = captchaToken;
+    if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
@@ -956,13 +956,13 @@ async function submitQR(boardUri, threadId) {
   const errEl   = document.getElementById('qr-error');
   if (!body) { errEl.textContent = 'A comment is required.'; return; }
   const captchaToken = getCaptchaToken('qr-captcha');
-  if (state.hcaptchaSiteKey && !state.session?.authenticated && !captchaToken) {
+  if (state.turnstileSiteKey && !state.session?.authenticated && !captchaToken) {
     errEl.textContent = 'Please complete the captcha.'; return;
   }
   errEl.textContent = '';
   try {
     const fields = { body, name, sage: options === 'sage' };
-    if (captchaToken) fields['h-captcha-response'] = captchaToken;
+    if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     const { postId } = await api.post(`/posts/${boardUri}/${threadId}`, fields);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
@@ -1108,7 +1108,7 @@ async function boot() {
     loadSession(),
     api.get('/auth/config').catch(() => ({}))
   ]);
-  state.hcaptchaSiteKey = cfg.hcaptchaSiteKey || null;
+  state.turnstileSiteKey = cfg.turnstileSiteKey || null;
 
   route();
 }

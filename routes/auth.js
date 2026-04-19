@@ -102,7 +102,7 @@ router.get('/global-flairs', (_req, res) => {
 // GET /api/auth/config — public client config
 router.get('/config', (req, res) => {
   res.json({
-    hcaptchaSiteKey: config.hcaptcha.enabled ? config.hcaptcha.siteKey : null
+    turnstileSiteKey: config.turnstile.enabled ? config.turnstile.siteKey : null
   });
 });
 

@@ -53,12 +53,10 @@ module.exports = {
     archiveThreshold:  10
   },
 
-  hcaptcha: {
-    // Test keys work in dev without an account — replace before going live
-    siteKey: process.env.HCAPTCHA_SITE_KEY || '10000000-ffff-ffff-ffff-000000000001',
-    secret:  process.env.HCAPTCHA_SECRET   || '0x0000000000000000000000000000000000000000',
-    // Set to false to disable entirely (e.g. local dev without network)
-    enabled: process.env.HCAPTCHA_ENABLED !== 'false'
+  turnstile: {
+    siteKey: process.env.TURNSTILE_SITE_KEY || '',
+    secret:  process.env.TURNSTILE_SECRET   || '',
+    enabled: process.env.TURNSTILE_ENABLED !== 'false'
   },
 
   // JSON RPC endpoints for on-chain flair checks (chainId → URL)

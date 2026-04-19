@@ -5,10 +5,10 @@ const config = require('../config');
 
 function verifyToken(token) {
   return new Promise((resolve, reject) => {
-    const body = `response=${encodeURIComponent(token)}&secret=${encodeURIComponent(config.hcaptcha.secret)}`;
+    const body = `response=${encodeURIComponent(token)}&secret=${encodeURIComponent(config.turnstile.secret)}`;
     const req  = https.request({
-      hostname: 'hcaptcha.com',
-      path:     '/siteverify',
+      hostname: 'challenges.cloudflare.com',
+      path:     '/turnstile/v0/siteverify',
       method:   'POST',
       headers:  {
         'Content-Type':   'application/x-www-form-urlencoded',
@@ -19,7 +19,7 @@ function verifyToken(token) {
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
         try { resolve(JSON.parse(data)); }
-        catch { reject(new Error('Invalid hCaptcha response')); }
+        catch { reject(new Error('Invalid Turnstile response')); }
       });
     });
     req.on('error', reject);
@@ -29,23 +29,21 @@ function verifyToken(token) {
 }
 
 module.exports = async (req, res, next) => {
-  // Captcha disabled globally
-  if (!config.hcaptcha.enabled) return next();
+  if (!config.turnstile.enabled) return next();
 
-  // Authenticated wallet users and admins skip captcha (like a 4chan Pass)
+  // Authenticated wallet users and admins skip captcha
   if (req.session?.accountId || req.session?.isAdmin) return next();
 
-  const token = req.body?.['h-captcha-response'];
+  const token = req.body?.['cf-turnstile-response'];
   if (!token) return res.status(400).json({ error: 'Captcha required' });
 
   try {
     const result = await verifyToken(token);
     if (!result.success) {
-      return res.status(400).json({ error: 'Captcha verification failed — please try again' });
+      return res.status(400).json({ error: 'Captcha verification failed. Please try again.' });
     }
     next();
   } catch (err) {
-    // If hCaptcha is unreachable, fail open in dev, fail closed in prod
     if (config.env === 'production') {
       return res.status(503).json({ error: 'Captcha service unavailable' });
     }
