@@ -139,7 +139,10 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
     // Country flair override — always applied when poster is foreign to the board's home country
     {
       const posterCountry = geoip.getCountry(rawIp);
-      const homeCountry   = (board.country || '').toUpperCase();
+      const raw = board.country || '';
+      const homeCountry = raw.length === 2
+        ? raw.toUpperCase()
+        : (board.allowedCountries?.length === 1 ? board.allowedCountries[0].toUpperCase() : '');
       if (posterCountry && homeCountry && posterCountry !== homeCountry) {
         const rule = await CountryFlair.findOne({
           fromCountry: posterCountry,

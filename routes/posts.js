@@ -39,7 +39,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
 
     const [thread, board] = await Promise.all([
       Thread.findOne({ boardUri, threadId }),
-      Board.findOne({ uri: boardUri }).select('allowedCountries country').lean()
+      Board.findOne({ uri: boardUri }).select('allowedCountries country minTier').lean()
     ]);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
     if (thread.isLocked) return res.status(403).json({ error: 'Thread is locked' });
@@ -102,7 +102,10 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
     // Country flair override — always applied when poster is foreign to the board's home country
     {
       const posterCountry = geoip.getCountry(rawIp);
-      const homeCountry   = (board?.country || '').toUpperCase();
+      const raw = board?.country || '';
+      const homeCountry = raw.length === 2
+        ? raw.toUpperCase()
+        : (board?.allowedCountries?.length === 1 ? board.allowedCountries[0].toUpperCase() : '');
       if (posterCountry && homeCountry && posterCountry !== homeCountry) {
         const rule = await CountryFlair.findOne({
           fromCountry: posterCountry,
