@@ -134,6 +134,17 @@ a:hover { color: var(--quotelink); }
   margin-bottom: 14px;
 }
 
+.board-list-category-header {
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 14px 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
 .board-list-section { margin-bottom: 22px; }
 
 .board-list-group-header {

@@ -251,21 +251,21 @@ async function loadIndex() {
 
     let html = '<div class="page-title">Boards</div>';
 
+    const globalGroups  = [];
+    const countryGroups = [];
+
     for (const [key, list] of Object.entries(boards)) {
       if (!list.length) continue;
+      const root = list.find(b => b.uri === key);
+      const isCountry = root?.homeCountry || root?.country?.length === 2;
+      (isCountry ? countryGroups : globalGroups).push([key, list]);
+    }
 
-      // Use the root board's name as the section header if it's in the list
-      const rootBoard = list.find(b => b.uri === key);
-      const label = rootBoard ? esc(rootBoard.name) : key.toUpperCase();
-
-      html += `<div class="board-list-section">
-        <div class="board-list-group-header">${label}</div>`;
-
-      // Root board first, then its direct children, then deeper children
-      const root     = list.filter(b => b.uri === key);
+    function renderGroup(key, list) {
+      const root     = list.find(b => b.uri === key);
+      const label    = root ? esc(root.name) : key.toUpperCase();
       const children = list.filter(b => b.uri !== key);
 
-      // Build a simple tree: group children by their parentUri
       const byParent = {};
       for (const b of children) {
         const p = b.parentUri || key;
@@ -274,16 +274,26 @@ async function loadIndex() {
       }
 
       function renderRows(parentUri, depth) {
-        const kids = byParent[parentUri] || [];
-        return kids.map(b =>
+        return (byParent[parentUri] || []).map(b =>
           boardRow(b, depth > 0) + renderRows(b.uri, depth + 1)
         ).join('');
       }
 
-      for (const b of root) html += boardRow(b, false);
-      html += renderRows(key, 1);
+      let out = `<div class="board-list-section"><div class="board-list-group-header">${label}</div>`;
+      if (root) out += boardRow(root, false);
+      out += renderRows(key, 1);
+      out += '</div>';
+      return out;
+    }
 
-      html += '</div>'; // .board-list-section
+    if (globalGroups.length) {
+      html += '<div class="board-list-category-header">General</div>';
+      for (const [key, list] of globalGroups) html += renderGroup(key, list);
+    }
+
+    if (countryGroups.length) {
+      html += '<div class="board-list-category-header">By Country</div>';
+      for (const [key, list] of countryGroups) html += renderGroup(key, list);
     }
 
     app.innerHTML = html;
