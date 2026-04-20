@@ -9,6 +9,10 @@
 <body>
   <div id="nav"></div>
   <div id="app"></div>
+  <div id="scroll-btns">
+    <button onclick="window.scrollTo({top:0,behavior:'smooth'})">Top</button>
+    <button onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})">Bottom</button>
+  </div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad" async defer></script>
   <script src="/.static/js/main.js"></script>

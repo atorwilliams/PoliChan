@@ -241,6 +241,10 @@ async function handleWalletClick() {
 
 // ── Index ─────────────────────────────────────────────────────────────────────
 
+function setScrollBtns(visible) {
+  document.getElementById('scroll-btns')?.classList.toggle('visible', visible);
+}
+
 function applyBoardCss(css) {
   let el = document.getElementById('board-custom-css');
   if (!css) { el?.remove(); return; }
@@ -251,6 +255,7 @@ function applyBoardCss(css) {
 
 async function loadIndex() {
   applyBoardCss('');
+  setScrollBtns(false);
   renderNav('/');
   const app = document.getElementById('app');
   app.innerHTML = '<div class="empty-state">Loading boards…</div>';
@@ -588,6 +593,7 @@ function closeAnnouncementModal() {
 // ── Board ─────────────────────────────────────────────────────────────────────
 
 async function loadBoard(uri) {
+  setScrollBtns(true);
   renderNav('/' + uri + '/');
   const app = document.getElementById('app');
   app.innerHTML = '<div class="empty-state">Loading…</div>';
@@ -716,7 +722,7 @@ function catalogCard(t, boardUri) {
     <div class="catalog-card ${t.isPinned ? 'pinned' : ''}" onclick="navigate('/${boardUri}/${t.threadId}')">
       ${thumb}
       <div class="catalog-subject">${t.subject ? esc(t.subject) : esc(strippedBody)}</div>
-      ${t.subject ? `<div class="catalog-excerpt">${esc(strippedBody)}</div>` : ''}
+      <div class="catalog-excerpt">${t.subject ? esc(strippedBody) : ''}</div>
       <div class="catalog-meta">
         <span class="replies">${t.replyCount}R</span>
         <span>${formatDate(t.bumpedAt)}</span>
@@ -902,6 +908,7 @@ async function submitThread(boardUri) {
 // ── Thread view ───────────────────────────────────────────────────────────────
 
 async function loadThread(boardUri, threadId) {
+  setScrollBtns(true);
   renderNav('/' + boardUri + '/');
   const app = document.getElementById('app');
   app.innerHTML = '<div class="empty-state">Loading…</div>';

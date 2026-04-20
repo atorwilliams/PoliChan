@@ -1079,6 +1079,34 @@ hr.index-divider {
 
 .watched-remove:hover { color: #e55; }
 
+/* ── Scroll jump buttons ─────────────────────────────────────────────────────── */
+
+#scroll-btns {
+  position: fixed;
+  bottom: 60px;
+  left: 10px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 500;
+}
+
+#scroll-btns.visible { display: flex; }
+
+#scroll-btns button {
+  background: var(--form-bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: inherit;
+  padding: 3px 7px;
+  cursor: pointer;
+  border-radius: 2px;
+  line-height: 1.4;
+}
+
+#scroll-btns button:hover { color: var(--text); border-color: var(--link); }
+
 /* ── Nav hamburger (hidden on desktop) ───────────────────────────────────────── */
 
 #nav-toggle {
@@ -1167,8 +1195,25 @@ hr.index-divider {
   .post-file { max-width: 38%; }
   .post-file img, .post-file video { max-width: 110px; max-height: 110px; }
 
-  /* ── Catalog ── */
-  .catalog { grid-template-columns: 1fr 1fr; }
+  /* ── Catalog: 2-column, show excerpt always ── */
+  .catalog { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .catalog-thumb, .catalog-thumb-placeholder { aspect-ratio: 4/3; }
+  .catalog-excerpt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* ── Index: single column stacked layout ── */
+  .index-img-float {
+    float: none;
+    margin: 0 0 6px 0;
+  }
+  .index-img-float img {
+    max-width: 100%;
+    max-height: 200px;
+    width: auto;
+  }
+  .index-img-float .file-info { display: none; }
+  .index-main { overflow: visible; }
+  .index-aside .post.reply { font-size: 0.8rem; }
+  .index-aside .reply-container { border-top: 1px solid rgba(0,0,0,0.06); padding: 2px 0; }
 
   /* ── Quick reply ── */
   #qr { left: 10px; right: 10px; bottom: 10px; min-width: 0; width: auto; }
