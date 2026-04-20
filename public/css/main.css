@@ -1223,6 +1223,5 @@ hr.index-divider {
 }
 
 @media (max-width: 420px) {
-  .catalog { grid-template-columns: 1fr; }
   .board-list-uri { width: 120px; }
 }
