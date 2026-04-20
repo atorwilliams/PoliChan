@@ -201,6 +201,9 @@ router.patch('/api/boards/:uri', async (req, res) => {
     if (homeCountry !== undefined) {
       update.homeCountry = homeCountry ? homeCountry.trim().toUpperCase() : '';
     }
+    if (req.body.customCss !== undefined) {
+      update.customCss = req.body.customCss || '';
+    }
 
     // Re-derive country/region from current URI (updateOne bypasses pre-save hooks)
     const parts = req.params.uri.split('-');

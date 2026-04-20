@@ -241,7 +241,16 @@ async function handleWalletClick() {
 
 // ── Index ─────────────────────────────────────────────────────────────────────
 
+function applyBoardCss(css) {
+  let el = document.getElementById('board-custom-css');
+  if (!css) { el?.remove(); return; }
+  if (!el) { el = document.createElement('style'); el.id = 'board-custom-css'; document.head.appendChild(el); }
+  // Strip </style closing tags to prevent injection breakout
+  el.textContent = css.replace(/<\/style/gi, '');
+}
+
 async function loadIndex() {
+  applyBoardCss('');
   renderNav('/');
   const app = document.getElementById('app');
   app.innerHTML = '<div class="empty-state">Loading boards…</div>';
@@ -257,7 +266,9 @@ async function loadIndex() {
     for (const [key, list] of Object.entries(boards)) {
       if (!list.length) continue;
       const root = list.find(b => b.uri === key);
-      const isCountry = root?.homeCountry || root?.country?.length === 2;
+      const isCountry = root?.homeCountry
+        || root?.country?.length === 2
+        || root?.allowedCountries?.length === 1;
       (isCountry ? countryGroups : globalGroups).push([key, list]);
     }
 
@@ -585,6 +596,7 @@ async function loadBoard(uri) {
     // Always fetch with preview=4 so toggling views is instant (no second fetch)
     const { board, threads } = await api.get('/threads/' + uri + '?preview=4');
     state.currentBoard  = board;
+    applyBoardCss(board.customCss || '');
     state.boardThreads  = threads;
 
     const v = state.boardView;
@@ -903,6 +915,7 @@ async function loadThread(boardUri, threadId) {
 
     state.currentBoard  = board;
     state.currentThread = thread;
+    applyBoardCss(board.customCss || '');
 
     let html = `
       <div class="breadcrumb">

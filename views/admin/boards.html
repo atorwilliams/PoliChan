@@ -79,6 +79,10 @@
           <label>Board Rules <span style="color:var(--muted);font-weight:400;text-transform:none">(shown collapsed above post form — plain text)</span></label>
           <textarea id="f-rules" rows="4" style="width:100%;font-family:monospace;font-size:0.82rem;background:var(--input-bg,#111);color:var(--text,#eee);border:1px solid var(--border,#333);padding:6px;resize:vertical" placeholder="1. No spam&#10;2. Stay on topic"></textarea>
         </div>
+        <div class="field span-2">
+          <label>Custom CSS <span style="color:var(--muted);font-weight:400;text-transform:none">(injected only on this board's pages)</span></label>
+          <textarea id="f-customCss" rows="6" style="width:100%;font-family:monospace;font-size:0.82rem;background:var(--input-bg,#111);color:var(--text,#eee);border:1px solid var(--border,#333);padding:6px;resize:vertical" placeholder=".board-header { background: #1a0000; }&#10;.post.op { border-left: 3px solid #ff4444; }"></textarea>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn btn-primary" onclick="submitForm()">Save</button>
@@ -153,7 +157,7 @@
   function showCreateForm() {
     editingUri = null;
     document.getElementById('formTitle').textContent = 'Create Board';
-    ['uri','name','desc','parent','polimapKey','allowedCountries','homeCountry','rules'].forEach(id => document.getElementById('f-'+id).value = '');
+    ['uri','name','desc','parent','polimapKey','allowedCountries','homeCountry','rules','customCss'].forEach(id => document.getElementById('f-'+id).value = '');
     document.getElementById('f-minTier').value = '0';
     document.getElementById('f-maxThreads').value = 150;
     document.getElementById('f-archiveThreshold').value = 10;
@@ -181,6 +185,7 @@
     document.getElementById('f-listed').checked = b.isListed !== false;
     document.getElementById('f-allowedCountries').value = (b.allowedCountries || []).join(',');
     document.getElementById('f-homeCountry').value = b.homeCountry || '';
+    document.getElementById('f-customCss').value   = b.customCss   || '';
     document.getElementById('f-minTier').value = String(b.minTier || 0);
     document.getElementById('f-rules').value = b.rules || '';
     document.getElementById('formError').textContent = '';
@@ -210,6 +215,7 @@
       isListed:         document.getElementById('f-listed').checked,
       allowedCountries: allowedRaw ? allowedRaw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [],
       homeCountry:      document.getElementById('f-homeCountry').value.trim().toUpperCase() || '',
+      customCss:        document.getElementById('f-customCss').value,
       minTier:          parseInt(document.getElementById('f-minTier').value) || 0,
       rules:            document.getElementById('f-rules').value.trim()
     };

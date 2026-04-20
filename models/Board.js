@@ -23,7 +23,8 @@ const boardSchema = new mongoose.Schema({
   // Region lock — empty array means no restriction; populate with uppercase ISO-3166-1 alpha-2 codes (e.g. ['CA', 'US'])
   allowedCountries: [{ type: String }],
   // Home country for flair override — uppercase ISO alpha-2 (e.g. 'US'). Separate from region lock.
-  homeCountry: { type: String, default: '' }
+  homeCountry: { type: String, default: '' },
+  customCss:   { type: String, default: '' }
 }, { timestamps: true });
 
 // Derive country/region from uri on save
