@@ -60,7 +60,7 @@ function generateEmbeds(rawBody) {
       `<div class="post-embed yt-embed">` +
       `<iframe src="https://www.youtube-nocookie.com/embed/${id}" ` +
       `frameborder="0" allowfullscreen loading="lazy" ` +
-      `allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture">` +
+      `allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;fullscreen">` +
       `</iframe></div>`
     );
   }

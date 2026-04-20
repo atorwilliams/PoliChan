@@ -36,6 +36,7 @@ body {
   color: var(--text);
   line-height: 1.4;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a { color: var(--link); text-decoration: underline; }
@@ -1159,7 +1160,7 @@ hr.index-divider {
   #app { padding: 8px 10px 80px; }
 
   /* ── Board header ── */
-  .board-header { padding: 8px 10px; margin: 0 -10px 10px; }
+  .board-header { padding: 8px 10px; margin: 0 -10px 10px; width: calc(100% + 20px); }
   .board-header-top { grid-template-columns: 1fr; gap: 0; }
   #sp-left, #sp-right { display: none !important; }
   .board-header h1 { font-size: 1.4rem; }
