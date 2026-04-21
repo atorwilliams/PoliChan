@@ -1,5 +1,11 @@
 'use strict';
 
+// Apply saved theme immediately to avoid flash
+(function () {
+  const t = localStorage.getItem('theme') || 'green';
+  if (t === 'red') document.documentElement.classList.add('theme-red');
+})();
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const state = {
@@ -178,12 +184,14 @@ function renderNav(activePath) {
       ${tierBadge}
       ${session?.isAdmin ? '<a href="/admin" style="color:#ffaaaa;font-size:0.82rem;text-decoration:none;font-weight:bold">Admin</a>' : ''}
       <button id="walletBtn" class="${session?.authenticated ? 'connected' : ''}">${walletLabel}</button>
+      <button id="theme-toggle" onclick="toggleTheme()" title="Switch theme" style="width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);cursor:pointer;padding:0;flex-shrink:0"></button>
       <button id="nav-toggle" aria-label="Menu" onclick="toggleNavMenu()">☰</button>
     </div>
   `;
 
   document.getElementById('walletBtn').addEventListener('click', handleWalletClick);
   updateWatchedIndicator();
+  applyTheme(getTheme());
 }
 
 function toggleNavMenu() {
@@ -192,6 +200,27 @@ function toggleNavMenu() {
 
 function closeNavMenu() {
   document.getElementById('nav-links')?.classList.remove('open');
+}
+
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+
+function getTheme() {
+  return localStorage.getItem('theme') || 'green';
+}
+
+function applyTheme(theme) {
+  document.documentElement.classList.toggle('theme-red', theme === 'red');
+  const btn = document.getElementById('theme-toggle');
+  if (btn) {
+    btn.title = theme === 'green' ? 'Switch to red theme' : 'Switch to green theme';
+    btn.style.background = theme === 'green' ? '#af0a0f' : '#2d8a2d';
+  }
+}
+
+function toggleTheme() {
+  const next = getTheme() === 'green' ? 'red' : 'green';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
 }
 
 // ── Wallet / Auth ─────────────────────────────────────────────────────────────
