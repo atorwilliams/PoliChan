@@ -652,6 +652,14 @@ img.expanded {
 .view-toggle-btn:hover  { color: var(--quotelink); text-decoration: underline; }
 .view-toggle-btn.active { color: var(--red); font-weight: bold; text-decoration: none; }
 
+.archive-pagination {
+  text-align: center;
+  font-size: 0.82rem;
+  padding: 8px 0;
+  color: var(--muted);
+}
+.archive-pagination a { color: var(--link); }
+
 /* ── Index view ─────────────────────────────────────────────────────────────── */
 
 /* Outer thread container: clearfixes the floating image */

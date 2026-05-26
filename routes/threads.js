@@ -59,6 +59,36 @@ router.get('/:boardUri', async (req, res) => {
   }
 });
 
+// GET /api/threads/:boardUri/archive — archived threads, paginated
+router.get('/:boardUri/archive', async (req, res) => {
+  try {
+    const board = await Board.findOne({ uri: req.params.boardUri }).lean();
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    const tier    = req.session?.poliPassTier || 0;
+    const isAdmin = req.session?.isAdmin || false;
+    if (!isAdmin && (board.minTier || 0) > tier) {
+      return res.status(403).json({ error: 'A higher-tier PoliPass is required to access this board' });
+    }
+
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 50;
+    const skip  = (page - 1) * limit;
+
+    const [threads, total] = await Promise.all([
+      Thread.find({ boardUri: req.params.boardUri, isArchived: true })
+        .sort({ bumpedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Thread.countDocuments({ boardUri: req.params.boardUri, isArchived: true })
+    ]);
+
+    res.json({ board, threads, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/threads/:boardUri/:threadId — single thread with posts
 router.get('/:boardUri/:threadId', async (req, res) => {
   try {

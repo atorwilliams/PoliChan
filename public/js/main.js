@@ -18,6 +18,9 @@ const state = {
   _pendingQuote:    null
 };
 
+let _socket     = null;
+let _socketRoom = null;
+
 // ── Turnstile ─────────────────────────────────────────────────────────────────
 
 let _turnstileReady = false;
@@ -108,7 +111,13 @@ const api = {
 
 function route() {
   const path = location.pathname;
-  const app  = document.getElementById('app');
+
+  // /ca-ab/archive → archive view
+  const archiveMatch = path.match(/^\/([a-z0-9-]+)\/archive\/?$/);
+  if (archiveMatch) {
+    const page = parseInt(new URLSearchParams(location.search).get('page')) || 1;
+    return loadArchive(archiveMatch[1], page);
+  }
 
   // /ca-ab/123 → thread view
   const threadMatch = path.match(/^\/([a-z0-9-]+)\/(\d+)\/?$/);
@@ -660,6 +669,7 @@ async function loadBoard(uri) {
           ${board.rules ? `[<a href="#" onclick="toggleBoardRules();return false">Rules</a>]` : ''}
           [<a class="view-toggle-btn ${v === 'catalog' ? 'active' : ''}" href="#" onclick="switchBoardView('catalog','${esc(uri)}');return false" data-view="catalog">Catalog</a>]
           [<a class="view-toggle-btn ${v === 'index'   ? 'active' : ''}" href="#" onclick="switchBoardView('index','${esc(uri)}');return false"   data-view="index">Index</a>]
+          [<a href="/${esc(uri)}/archive" data-nav>Archive</a>]
         </div>
       </div>
 
@@ -724,6 +734,59 @@ function renderBoardContent(threads, board, uri) {
     container.innerHTML = threads.length
       ? `<div class="catalog">${threads.map(t => catalogCard(t, uri)).join('')}</div>`
       : '<div class="empty-state">No threads yet. Start one.</div>';
+  }
+}
+
+// ── Archive view ──────────────────────────────────────────────────────────────
+
+async function loadArchive(uri, page = 1) {
+  setScrollBtns(true);
+  renderNav('/' + uri + '/');
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="empty-state">Loading archive…</div>';
+
+  try {
+    const { board, threads, total, pages } = await api.get(
+      `/threads/${uri}/archive?page=${page}`
+    );
+    state.currentBoard = board;
+    applyBoardCss(board.customCss || '');
+
+    const paginationHtml = pages > 1 ? `
+      <div class="archive-pagination">
+        ${page > 1 ? `[<a href="/${esc(uri)}/archive?page=${page - 1}" data-nav>Prev</a>] ` : ''}
+        Page ${page} of ${pages}
+        ${page < pages ? ` [<a href="/${esc(uri)}/archive?page=${page + 1}" data-nav>Next</a>]` : ''}
+      </div>` : '';
+
+    app.innerHTML = `
+      <div class="breadcrumb">
+        <a href="/" data-nav>boards</a>
+        <span class="sep">›</span>
+        <a href="/${esc(board.uri)}/" data-nav>/${esc(board.uri)}/</a>
+        <span class="sep">›</span>
+        <span>Archive</span>
+      </div>
+
+      <div class="board-header">
+        <div class="board-header-top">
+          <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center">
+            <div class="board-uri-label">/${esc(board.uri)}/</div>
+            <h1>${esc(board.name)}</h1>
+            <div class="board-desc">Archive — ${total} thread${total !== 1 ? 's' : ''}</div>
+          </div>
+        </div>
+        <div class="board-actions">
+          [<a href="/${esc(uri)}/" data-nav>Back to Board</a>]
+        </div>
+      </div>
+
+      ${threads.length
+        ? `${paginationHtml}<div class="catalog">${threads.map(t => catalogCard(t, uri)).join('')}</div>${paginationHtml}`
+        : '<div class="empty-state">No archived threads.</div>'}
+    `;
+  } catch (e) {
+    app.innerHTML = `<div class="empty-state">Failed to load archive: ${e.message}</div>`;
   }
 }
 
@@ -991,11 +1054,14 @@ async function loadThread(boardUri, threadId) {
       }
     }
 
-    // Socket.io — live replies
+    // Socket.io — live replies (single persistent connection, switch rooms on navigate)
     if (window.io) {
-      const socket = io();
-      socket.emit('join-thread', { boardUri, threadId });
-      socket.on('new-post', async (post) => {
+      if (!_socket) _socket = io();
+      if (_socketRoom) _socket.emit('leave-thread', _socketRoom);
+      _socketRoom = { boardUri, threadId };
+      _socket.emit('join-thread', { boardUri, threadId });
+      _socket.off('new-post');
+      _socket.on('new-post', (post) => {
         const tv = document.querySelector('.thread-view');
         if (tv) tv.insertAdjacentHTML('beforeend', renderPost(post, boardUri, false));
       });

@@ -1,8 +1,8 @@
 'use strict';
 
-const CONTRACT_ADDRESS = '0x1B484d1814a42C1C72F65602b18c97cE2aE6573F';
-const CHAIN_ID         = 11155111;  // Sepolia — swap to 8453 for Base mainnet
-const CHAIN_NAME       = 'Sepolia';
+const CONTRACT_ADDRESS = '0xb0d5b064d38ac1abd4202dcfa08c51cad02220c1';
+const CHAIN_ID         = 8453;
+const CHAIN_NAME       = 'Base';
 
 const ABI = [
   'function getPrice(uint8 tier) view returns (uint256)',
