@@ -325,6 +325,11 @@ async function loadIndex() {
 
     let html = '';
 
+    html += `
+      <div id="banner-global" style="display:none;margin:0 0 12px;text-align:center">
+        <img src="" alt="banner" style="width:300px;height:100px;object-fit:contain">
+      </div>`;
+
     if (!localStorage.getItem('hide_polichan_intro')) {
       html += `
         <div class="index-box" id="index-intro">
@@ -410,6 +415,7 @@ async function loadIndex() {
 
     app.innerHTML = html;
     loadAnnouncementsInline();
+    loadBanners('_index');
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load boards: ${e.message}</div>`;
   }
