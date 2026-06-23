@@ -109,25 +109,32 @@ const api = {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
+function showAppShell(isIndex) {
+  document.getElementById('board-index-root').style.display = isIndex ? 'block' : 'none';
+  document.getElementById('app').style.display = isIndex ? 'none' : 'block';
+}
+
 function route() {
   const path = location.pathname;
 
   // /ca-ab/archive → archive view
   const archiveMatch = path.match(/^\/([a-z0-9-]+)\/archive\/?$/);
   if (archiveMatch) {
+    showAppShell(false);
     const page = parseInt(new URLSearchParams(location.search).get('page')) || 1;
     return loadArchive(archiveMatch[1], page);
   }
 
   // /ca-ab/123 → thread view
   const threadMatch = path.match(/^\/([a-z0-9-]+)\/(\d+)\/?$/);
-  if (threadMatch) return loadThread(threadMatch[1], parseInt(threadMatch[2]));
+  if (threadMatch) { showAppShell(false); return loadThread(threadMatch[1], parseInt(threadMatch[2])); }
 
   // /ca-ab/ → board catalog
   const boardMatch = path.match(/^\/([a-z0-9-]+)\/?$/);
-  if (boardMatch && boardMatch[1] !== 'admin') return loadBoard(boardMatch[1]);
+  if (boardMatch && boardMatch[1] !== 'admin') { showAppShell(false); return loadBoard(boardMatch[1]); }
 
   // / → index
+  showAppShell(true);
   loadIndex();
 }
 
@@ -180,14 +187,19 @@ function renderNav(activePath) {
     ? `<a href="/pass" class="polipass-badge polipass-tier-${tier}">${TIER_NAMES[tier]}</a>`
     : '';
 
-  nav.innerHTML = `
-    <a class="brand" href="/" data-nav>Poli<span>Chan</span></a>
-    <div class="nav-links" id="nav-links">
-      <a href="/" data-nav ${activePath === '/' ? 'class="active"' : ''}>Boards</a>
+  const isIndex = activePath === '/';
+  const watchedLink = `<a href="#" onclick="openWatchedPanel();closeNavMenu();return false" class="nav-watched-link">Watching<span id="watched-count" class="watched-count-badge"></span></a>`;
+  const navLinks = isIndex ? watchedLink : `
+      <a href="/" data-nav>Boards</a>
       <a href="/pass" ${activePath === '/pass' ? 'class="active"' : ''}>PoliPass</a>
       <a href="/wall" ${activePath === '/wall' ? 'class="active"' : ''}>Wall</a>
       <a href="/constitution" ${activePath === '/constitution' ? 'class="active"' : ''}>Constitution</a>
-      <a href="#" onclick="openWatchedPanel();closeNavMenu();return false" class="nav-watched-link">Watching<span id="watched-count" class="watched-count-badge"></span></a>
+      ${watchedLink}`;
+
+  nav.innerHTML = `
+    <a class="brand" href="/" data-nav>Poli<span>Chan</span></a>
+    <div class="nav-links" id="nav-links">
+      ${navLinks}
     </div>
     <div class="nav-right">
       ${tierBadge}
@@ -295,13 +307,26 @@ async function loadIndex() {
   applyBoardCss('');
   setScrollBtns(false);
   renderNav('/');
-  const app = document.getElementById('app');
+  const app = document.getElementById('board-index-root');
   app.innerHTML = '<div class="empty-state">Loading boards…</div>';
 
   try {
     const { boards } = await api.get('/boards');
 
-    let html = '<div class="page-title">Boards</div>';
+    let html = '';
+
+    if (!localStorage.getItem('hide_polichan_intro')) {
+      html += `
+        <div class="index-box" id="index-intro">
+          <div class="index-box-header"><span>What is PoliChan?</span><button onclick="dismissIntro()" title="Close">✕</button></div>
+          <div class="index-box-body">
+            <p>PoliChan is a political discussion imageboard for Canadian politics and beyond. No account is needed to post anonymously. Pick a board below and jump in. Wallet-linked tripcodes and PoliPass flairs are available for verified posters.</p>
+            <p>Be sure to check each board's rules before posting, and read the <a href="/constitution">Constitution</a> if you want to understand how PoliChan is governed.</p>
+          </div>
+        </div>`;
+    }
+
+    html += '<div class="index-box"><div class="index-box-header"><span>Boards</span></div><div class="index-box-body"><div class="board-list-columns">';
 
     const globalGroups  = [];
     const countryGroups = [];
@@ -309,9 +334,10 @@ async function loadIndex() {
     for (const [key, list] of Object.entries(boards)) {
       if (!list.length) continue;
       const root = list.find(b => b.uri === key);
-      const isCountry = root?.homeCountry
-        || root?.country?.length === 2
-        || root?.allowedCountries?.length === 1;
+      const sample = root || list[0];
+      const isCountry = sample?.homeCountry
+        || sample?.country?.length === 2
+        || sample?.allowedCountries?.length === 1;
       (isCountry ? countryGroups : globalGroups).push([key, list]);
     }
 
@@ -350,11 +376,38 @@ async function loadIndex() {
       for (const [key, list] of countryGroups) html += renderGroup(key, list);
     }
 
+    html += '</div></div></div>';
+
+    html += `
+      <div class="index-box" id="index-announcements-box" style="display:none">
+        <div class="index-box-header"><span>Announcements</span></div>
+        <div class="index-box-body" id="index-announcements-body"></div>
+      </div>`;
+
+    html += `
+      <div class="index-footer">
+        <div class="index-footer-tabs">
+          <a href="/" data-nav>Boards</a>
+          <a href="/pass">PoliPass</a>
+          <a href="/wall">Wall</a>
+          <a href="/constitution">Constitution</a>
+        </div>
+        <div class="index-footer-links">
+          <a href="/about">About</a> &bull; <a href="/meta/" data-nav>Feedback</a> &bull; <a href="/legal">Legal</a> &bull; <a href="/contact">Contact</a>
+        </div>
+        <div class="index-footer-copyright">Copyright &copy; ${new Date().getFullYear()} PoliChan. All rights reserved.</div>
+      </div>`;
+
     app.innerHTML = html;
-    loadAnnouncements();
+    loadAnnouncementsInline();
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load boards: ${e.message}</div>`;
   }
+}
+
+function dismissIntro() {
+  localStorage.setItem('hide_polichan_intro', '1');
+  document.getElementById('index-intro')?.remove();
 }
 
 function boardRow(board, isChild) {
@@ -584,33 +637,25 @@ function toggleBoardRules() {
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
-// ── Announcements modal ───────────────────────────────────────────────────────
+// ── Announcements (inline, on board index) ────────────────────────────────────
 
 const _dismissed = new Set(JSON.parse(localStorage.getItem('dismissed_announcements') || '[]'));
 
-async function loadAnnouncements() {
+async function loadAnnouncementsInline() {
+  const box  = document.getElementById('index-announcements-box');
+  const body = document.getElementById('index-announcements-body');
+  if (!box || !body) return;
+
   try {
     const { announcements } = await api.get('/announcements');
     const visible = announcements.filter(a => !_dismissed.has(a._id));
     if (!visible.length) return;
 
-    const modal = document.createElement('div');
-    modal.id = 'announcement-modal';
-    modal.innerHTML = `
-      <div id="announcement-modal-box">
-        <div id="announcement-modal-header">
-          <span>Announcements</span>
-          <button onclick="closeAnnouncementModal()" title="Close">✕</button>
-        </div>
-        <div id="announcement-modal-body">
-          ${visible.map(a => `<div class="announcement-item" data-id="${a._id}">
-            <p>${esc(a.text)}</p>
-            <button class="ann-dismiss" onclick="dismissAnnouncement('${a._id}')">Dismiss</button>
-          </div>`).join('')}
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) closeAnnouncementModal(); });
+    body.innerHTML = visible.map(a => `<div class="announcement-item" data-id="${a._id}">
+      <p>${esc(a.text)}</p>
+      <button class="ann-dismiss" onclick="dismissAnnouncement('${a._id}')">Dismiss</button>
+    </div>`).join('');
+    box.style.display = 'block';
   } catch (_) {}
 }
 
@@ -618,14 +663,11 @@ function dismissAnnouncement(id) {
   _dismissed.add(id);
   localStorage.setItem('dismissed_announcements', JSON.stringify([..._dismissed]));
   const el = document.querySelector(`.announcement-item[data-id="${id}"]`);
-  if (el) {
-    el.remove();
-    if (!document.querySelectorAll('.announcement-item').length) closeAnnouncementModal();
+  el?.remove();
+  if (!document.querySelectorAll('.announcement-item').length) {
+    const box = document.getElementById('index-announcements-box');
+    if (box) box.style.display = 'none';
   }
-}
-
-function closeAnnouncementModal() {
-  document.getElementById('announcement-modal')?.remove();
 }
 
 // ── Board ─────────────────────────────────────────────────────────────────────

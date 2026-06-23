@@ -195,6 +195,9 @@ app.post('/api/ads/:advertiserId/:adId/click', async (req, res) => {
 app.get('/pass',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'pass.html')));
 app.get('/wall',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));
 app.get('/constitution', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'constitution.html')));
+app.get('/about',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'about.html')));
+app.get('/legal',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'legal.html')));
+app.get('/contact',      (_req, res) => res.sendFile(path.join(__dirname, 'views', 'contact.html')));
 
 // Serve the shell HTML for all non-API, non-admin routes (client JS takes over)
 app.get('*', (req, res) => {
