@@ -19,6 +19,7 @@ const fs         = require('fs');
 const mongoose   = require('mongoose');
 const cookieParser = require('cookie-parser');
 const helmet     = require('helmet');
+const morgan     = require('morgan');
 const { Server } = require('socket.io');
 
 const { attachSession } = require('./middleware/auth');
@@ -28,6 +29,17 @@ const Board  = require('./models/Board');
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server);
+
+// PM2 restarts the process on crash either way — log why before it happens,
+// since otherwise the only trace is a silent restart with no error context.
+process.on('uncaughtException', err => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', err => {
+  console.error('Unhandled rejection:', err);
+  process.exit(1);
+});
 
 // ── Database ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +54,8 @@ mongoose.connect(config.mongo.uri)
 
 // Trust first proxy (nginx) so req.ip reflects the real client IP
 app.set('trust proxy', 1);
+
+app.use(morgan(config.env === 'production' ? 'combined' : 'dev'));
 
 // Security headers. CSP is permissive on script/style because the app relies
 // heavily on inline <script> blocks and onclick handlers (no nonce/build step

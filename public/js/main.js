@@ -21,6 +21,16 @@ const state = {
 let _socket     = null;
 let _socketRoom = null;
 
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+function toast(msg, isErr) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (isErr ? ' toast-error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
 // ── Turnstile ─────────────────────────────────────────────────────────────────
 
 let _turnstileReady = false;
@@ -268,7 +278,7 @@ async function handleWalletClick() {
       const deepLink = 'https://metamask.app.link/dapp/' + location.host + location.pathname;
       window.location.href = deepLink;
     } else {
-      alert('MetaMask is not installed. Get it at metamask.io.');
+      toast('MetaMask is not installed. Get it at metamask.io.', true);
     }
     return;
   }
@@ -285,7 +295,7 @@ async function handleWalletClick() {
     await loadSession();
     renderNav(location.pathname);
   } catch (e) {
-    alert('Wallet connection failed: ' + e.message);
+    toast('Wallet connection failed: ' + e.message, true);
   }
 }
 
@@ -1238,7 +1248,7 @@ async function votePoll(boardUri, threadId, optionIndex) {
       el.querySelector('.poll-pct').textContent = pct + '%';
     });
   } catch (e) {
-    alert(e.message);
+    toast(e.message, true);
   }
 }
 
@@ -1569,9 +1579,9 @@ async function reportPost(boardUri, threadId, postId) {
     await api.post('/posts/' + boardUri + '/' + threadId + '/report', {
       postId, reason: map[reason]
     });
-    alert('Report submitted.');
+    toast('Report submitted.');
   } catch (e) {
-    alert('Failed: ' + e.message);
+    toast('Failed: ' + e.message, true);
   }
 }
 
@@ -1616,7 +1626,7 @@ async function modPin(boardUri, threadId, pinned) {
     } else {
       loadBoard(boardUri);
     }
-  } catch (e) { alert('Pin failed: ' + e.message); }
+  } catch (e) { toast('Pin failed: ' + e.message, true); }
 }
 
 async function modLock(boardUri, threadId, locked) {
@@ -1627,7 +1637,7 @@ async function modLock(boardUri, threadId, locked) {
     } else {
       loadBoard(boardUri);
     }
-  } catch (e) { alert('Lock failed: ' + e.message); }
+  } catch (e) { toast('Lock failed: ' + e.message, true); }
 }
 
 async function modDeletePost(boardUri, postId, threadId) {
@@ -1637,7 +1647,7 @@ async function modDeletePost(boardUri, postId, threadId) {
     // Remove from DOM immediately
     const el = document.getElementById('p' + postId);
     (el?.closest('.reply-container') || el)?.remove();
-  } catch (e) { alert('Delete failed: ' + e.message); }
+  } catch (e) { toast('Delete failed: ' + e.message, true); }
 }
 
 async function modDeleteThread(boardUri, threadId) {
@@ -1645,7 +1655,7 @@ async function modDeleteThread(boardUri, threadId) {
   try {
     await api.post('/mod/delete/thread', { boardUri, threadId });
     navigate('/' + boardUri + '/');
-  } catch (e) { alert('Delete failed: ' + e.message); }
+  } catch (e) { toast('Delete failed: ' + e.message, true); }
 }
 
 async function modBan(boardUri, threadId, postId) {
@@ -1656,7 +1666,7 @@ async function modBan(boardUri, threadId, postId) {
 
   const hoursRaw = prompt('Duration in hours (leave blank for permanent):');
   const hours    = hoursRaw?.trim() ? parseInt(hoursRaw) : null;
-  if (hoursRaw?.trim() && !hours) { alert('Invalid duration'); return; }
+  if (hoursRaw?.trim() && !hours) { toast('Invalid duration', true); return; }
 
   try {
     await api.post('/mod/ban', {
@@ -1665,8 +1675,8 @@ async function modBan(boardUri, threadId, postId) {
       reason,
       durationHours: hours
     });
-    alert('Banned' + (hours ? ` for ${hours}h` : ' permanently'));
-  } catch (e) { alert('Ban failed: ' + e.message); }
+    toast('Banned' + (hours ? ` for ${hours}h` : ' permanently'));
+  } catch (e) { toast('Ban failed: ' + e.message, true); }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
