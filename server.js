@@ -91,8 +91,8 @@ app.use('/.static', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // Favicon + robots.txt
-app.get('/favicon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.svg')));
-app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.svg')));
+app.get('/favicon.png', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.png')));
+app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.png')));
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send(
     'User-agent: *\n' +
