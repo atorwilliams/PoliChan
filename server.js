@@ -15,11 +15,15 @@ for (const key of required) {
 const express    = require('express');
 const http       = require('http');
 const path       = require('path');
+const fs         = require('fs');
 const mongoose   = require('mongoose');
 const cookieParser = require('cookie-parser');
+const helmet     = require('helmet');
 const { Server } = require('socket.io');
 
 const { attachSession } = require('./middleware/auth');
+const Thread = require('./models/Thread');
+const Board  = require('./models/Board');
 
 const app    = express();
 const server = http.createServer(app);
@@ -39,6 +43,30 @@ mongoose.connect(config.mongo.uri)
 // Trust first proxy (nginx) so req.ip reflects the real client IP
 app.set('trust proxy', 1);
 
+// Security headers. CSP is permissive on script/style because the app relies
+// heavily on inline <script> blocks and onclick handlers (no nonce/build step
+// to thread a nonce through every view) — this still blocks third-party script
+// injection from compromised CDNs/iframes and locks down framing.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://challenges.cloudflare.com'],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],
+      imgSrc:      ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc:    ["'self'", 'blob:', 'https:'],
+      fontSrc:     ["'self'", 'data:'],
+      connectSrc:  ["'self'", 'https://challenges.cloudflare.com', 'wss:', 'ws:'],
+      frameSrc:    ['https://challenges.cloudflare.com'],
+      objectSrc:   ["'none'"],
+      frameAncestors: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -47,6 +75,40 @@ app.use(attachSession);
 // Static files
 app.use('/.static', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// Favicon + robots.txt
+app.get('/favicon.svg', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.svg')));
+app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.svg')));
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(
+    'User-agent: *\n' +
+    'Disallow: /manage\n' +
+    'Disallow: /admin\n' +
+    'Disallow: /api\n' +
+    'Allow: /\n' +
+    `Sitemap: ${req.protocol}://${req.get('host')}/sitemap.xml\n`
+  );
+});
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const base = `${req.protocol}://${req.get('host')}`;
+    const boards = await Board.find({ isListed: true }).select('uri').lean();
+    const urls = [
+      `${base}/`,
+      `${base}/about`,
+      `${base}/constitution`,
+      ...boards.map(b => `${base}/${b.uri}/`)
+    ];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urls.map(u => `  <url><loc>${u}</loc></url>`).join('\n') +
+      `\n</urlset>`;
+    res.type('application/xml').send(xml);
+  } catch (err) {
+    res.status(500).send('');
+  }
+});
 
 // Attach io to req so routes can emit events
 app.use((req, _res, next) => { req.io = io; next(); });
@@ -199,9 +261,54 @@ app.get('/about',        (_req, res) => res.sendFile(path.join(__dirname, 'views
 app.get('/legal',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'legal.html')));
 app.get('/contact',      (_req, res) => res.sendFile(path.join(__dirname, 'views', 'contact.html')));
 
-// Serve the shell HTML for all non-API, non-admin routes (client JS takes over)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', 'index.html'));
+// Serve the shell HTML for all non-API, non-admin routes (client JS takes over).
+// Bots (Discord/Twitter unfurlers) don't run the client JS router, so board/thread
+// routes get their og:* tags injected server-side here instead.
+const indexHtml = fs.readFileSync(path.join(__dirname, 'views', 'index.html'), 'utf8');
+
+function escAttr(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+app.get('*', async (req, res) => {
+  const base = `${req.protocol}://${req.get('host')}`;
+  let og = '';
+
+  try {
+    const threadMatch = req.path.match(/^\/([a-z0-9-]+)\/(\d+)\/?$/);
+    const boardMatch  = !threadMatch && req.path.match(/^\/([a-z0-9-]+)\/?$/);
+
+    if (threadMatch) {
+      const [, boardUri, threadIdStr] = threadMatch;
+      const thread = await Thread.findOne({ boardUri, threadId: parseInt(threadIdStr) })
+        .select('subject body media').lean();
+      if (thread) {
+        const title = thread.subject || `Thread No.${threadIdStr}`;
+        const desc  = (thread.body || '').slice(0, 200);
+        const image = thread.media?.thumbName ? `${base}/uploads/${boardUri}/${thread.media.thumbName}` : null;
+        og = `<meta property="og:title" content="${escAttr(title)} — /${escAttr(boardUri)}/">
+  <meta property="og:description" content="${escAttr(desc)}">
+  <meta property="og:url" content="${base}${req.path}">
+  <meta property="og:type" content="article">
+  ${image ? `<meta property="og:image" content="${escAttr(image)}">` : ''}
+  <meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`;
+      }
+    } else if (boardMatch) {
+      const boardUri = boardMatch[1];
+      const board = await Board.findOne({ uri: boardUri }).select('name description').lean();
+      if (board) {
+        og = `<meta property="og:title" content="/${escAttr(boardUri)}/ — ${escAttr(board.name)}">
+  <meta property="og:description" content="${escAttr(board.description)}">
+  <meta property="og:url" content="${base}${req.path}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">`;
+      }
+    }
+  } catch (err) {
+    console.error('OG meta injection error:', err);
+  }
+
+  res.send(indexHtml.replace('<!--OG_META-->', og));
 });
 
 // ── Socket.io ─────────────────────────────────────────────────────────────────

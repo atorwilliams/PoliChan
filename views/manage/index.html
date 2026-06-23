@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Manage — PoliChan</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/.static/css/admin.css">
   <style>
     .poll-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -20,6 +21,15 @@
     .badge-open    { background: #2a5; color: #fff; }
     .status-bar { display: flex; align-items: center; gap: 10px; padding: 8px 0 16px; font-size: 0.82rem; color: var(--muted); }
     #boardTitle { margin: 0; }
+
+    .thread-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .thread-row:last-child { border-bottom: none; }
+    .thread-meta { flex: 1; min-width: 0; }
+    .thread-subject { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
+    .thread-excerpt { font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .thread-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .badge-pinned { background: #2a5; color: #fff; }
+    .badge-locked { background: #555; color: #ccc; }
   </style>
 </head>
 <body>
@@ -60,6 +70,12 @@
         <span class="error-msg" id="createError"></span>
       </div>
     </div>
+  </div>
+
+  <!-- Thread list -->
+  <div class="panel">
+    <div class="panel-header">Threads <span id="threadCount" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="threadList"><div class="empty">Loading…</div></div>
   </div>
 
   <!-- Poll list -->
@@ -105,7 +121,71 @@
     } catch (e) {
       document.getElementById('sessionInfo').textContent = 'Not authenticated';
     }
+    loadThreads();
     loadPolls();
+  }
+
+  async function loadThreads() {
+    try {
+      const { threads } = await api('GET', `/manage/api/${boardUri}/threads`);
+      document.getElementById('threadCount').textContent = `(${threads.length})`;
+      const el = document.getElementById('threadList');
+
+      if (!threads.length) {
+        el.innerHTML = '<div class="empty">No threads on this board yet.</div>';
+        return;
+      }
+
+      el.innerHTML = threads.map(t => {
+        const excerpt = (t.subject ? t.subject + ' — ' : '') + (t.body || '');
+        return `<div class="thread-row">
+          <div class="thread-meta">
+            <div class="thread-subject">
+              No.${t.threadId}
+              ${t.isPinned ? '<span class="badge badge-pinned">PINNED</span>' : ''}
+              ${t.isLocked ? '<span class="badge badge-locked">LOCKED</span>' : ''}
+            </div>
+            <div class="thread-excerpt">${esc(excerpt)}</div>
+            <div style="font-size:0.75rem;color:var(--muted)">
+              ${t.replyCount} repl${t.replyCount === 1 ? 'y' : 'ies'} &bull; bumped ${new Date(t.bumpedAt).toLocaleString()}
+            </div>
+          </div>
+          <div class="thread-actions">
+            <a class="btn btn-ghost btn-sm" href="/${boardUri}/${t.threadId}" target="_blank">View</a>
+            <button class="btn btn-ghost btn-sm" onclick="togglePin(${t.threadId}, ${!t.isPinned})">${t.isPinned ? 'Unpin' : 'Pin'}</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleLock(${t.threadId}, ${!t.isLocked})">${t.isLocked ? 'Unlock' : 'Lock'}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteThread(${t.threadId})">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('threadList').innerHTML = `<div class="empty" style="color:#e55">${esc(e.message)}</div>`;
+    }
+  }
+
+  async function togglePin(threadId, pinned) {
+    try {
+      await api('POST', `/manage/api/${boardUri}/threads/${threadId}/pin`, { pinned });
+      toast(pinned ? 'Thread pinned' : 'Thread unpinned');
+      loadThreads();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function toggleLock(threadId, locked) {
+    try {
+      await api('POST', `/manage/api/${boardUri}/threads/${threadId}/lock`, { locked });
+      toast(locked ? 'Thread locked' : 'Thread unlocked');
+      loadThreads();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function deleteThread(threadId) {
+    if (!confirm('Delete this thread and all its replies? This cannot be undone.')) return;
+    try {
+      await api('DELETE', `/manage/api/${boardUri}/threads/${threadId}`);
+      toast('Thread deleted');
+      loadThreads();
+    } catch (e) { toast(e.message, true); }
   }
 
   async function loadPolls() {

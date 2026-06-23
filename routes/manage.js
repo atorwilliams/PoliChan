@@ -4,6 +4,7 @@ const express  = require('express');
 const path     = require('path');
 const router   = express.Router();
 const Thread   = require('../models/Thread');
+const Post     = require('../models/Post');
 const Board    = require('../models/Board');
 const counter  = require('../services/counter');
 const markup   = require('../services/markup');
@@ -153,6 +154,60 @@ router.get('/api/:boardUri/polls/:threadId/export.json', requireBoardMod, async 
     const filename = `poll-${boardUri}-${threadId}.json`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.json(payload);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/manage/:boardUri/threads — list non-archived threads for moderation
+router.get('/api/:boardUri/threads', requireBoardMod, async (req, res) => {
+  try {
+    const threads = await Thread.find({ boardUri: req.params.boardUri, isArchived: { $ne: true } })
+      .select('threadId subject body isPinned isLocked replyCount createdAt bumpedAt')
+      .sort({ isPinned: -1, bumpedAt: -1 })
+      .lean();
+
+    res.json({ threads });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/manage/:boardUri/threads/:threadId/pin
+router.post('/api/:boardUri/threads/:threadId/pin', requireBoardMod, async (req, res) => {
+  try {
+    const { boardUri } = req.params;
+    const threadId = parseInt(req.params.threadId);
+    const { pinned } = req.body;
+    await Thread.updateOne({ boardUri, threadId }, { isPinned: !!pinned });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/manage/:boardUri/threads/:threadId/lock
+router.post('/api/:boardUri/threads/:threadId/lock', requireBoardMod, async (req, res) => {
+  try {
+    const { boardUri } = req.params;
+    const threadId = parseInt(req.params.threadId);
+    const { locked } = req.body;
+    await Thread.updateOne({ boardUri, threadId }, { isLocked: !!locked });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/manage/:boardUri/threads/:threadId
+router.delete('/api/:boardUri/threads/:threadId', requireBoardMod, async (req, res) => {
+  try {
+    const { boardUri } = req.params;
+    const threadId = parseInt(req.params.threadId);
+    await Thread.deleteOne({ boardUri, threadId });
+    await Post.deleteMany({ boardUri, threadId });
+    await Board.updateOne({ uri: boardUri }, { $inc: { threadCount: -1 } });
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

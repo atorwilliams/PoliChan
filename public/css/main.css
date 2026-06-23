@@ -1159,6 +1159,20 @@ hr.index-divider {
 
 #scroll-btns button:hover { color: var(--red); border-color: var(--red); }
 
+@media (max-width: 720px) {
+  /* Bottom-left fixed position overlaps the quick-reply form's File/Post
+     buttons on narrow screens — move to the right edge, out of the way. */
+  #scroll-btns {
+    bottom: auto;
+    left: auto;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    opacity: 0.7;
+  }
+  #scroll-btns button { padding: 5px 8px; }
+}
+
 /* ── Nav hamburger (hidden on desktop) ───────────────────────────────────────── */
 
 #nav-toggle {
