@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ - PoliChan</title>
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/.static/css/main.css">
+  <style>
+    #faq-page {
+      max-width: 860px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+    #faq-page h1 {
+      font-size: 1.4rem;
+      color: var(--subject);
+      margin-bottom: 4px;
+    }
+    #faq-page .subtitle {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 24px;
+    }
+    #faq-body {
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      padding: 24px;
+      font-size: 0.9rem;
+      line-height: 1.8;
+      color: var(--text);
+    }
+    #faq-body h2 {
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border-form);
+      padding-bottom: 4px;
+      margin: 28px 0 10px;
+    }
+    #faq-body h2:first-child { margin-top: 0; }
+    #faq-body h3 {
+      font-size: 0.95rem;
+      color: var(--subject);
+      margin: 16px 0 4px;
+    }
+    #faq-body h3:first-of-type { margin-top: 0; }
+    #faq-body p { margin-bottom: 12px; }
+    #faq-body p:last-child { margin-bottom: 0; }
+    #faq-body code {
+      background: var(--reply-bg);
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+<div id="nav">
+  <a class="brand" href="/">Poli<span>Chan</span></a>
+  <div class="nav-links">
+    <a href="/">Boards</a>
+    <a href="/pass">PoliPass</a>
+    <a href="/wall">Wall</a>
+    <a href="/constitution">Constitution</a>
+  </div>
+  <div class="nav-right">
+    <button id="walletBtn">Connect Wallet</button>
+  </div>
+</div>
+
+<div id="faq-page">
+  <h1>FAQ</h1>
+  <p class="subtitle">Common questions about using PoliChan.</p>
+  <div id="faq-body">
+
+    <h2>Basics</h2>
+
+    <h3>What is PoliChan?</h3>
+    <p>PoliChan is a simple image-based bulletin board for political discussion. Boards are organized by topic and by country, covering everything from general politics to specific elections and current events. Anyone can read or post without creating an account.</p>
+
+    <h3>Do I need to register to post?</h3>
+    <p>No. There is no sign-up, no email, and no password. Open any board and start a thread or reply right away.</p>
+
+    <h3>How do I post anonymously?</h3>
+    <p>Just leave the [Name] field blank. Your IP address is never shown publicly, and is hashed before being stored. See <a href="#privacy">Privacy</a> below.</p>
+
+    <h3>Do I need to post an image?</h3>
+    <p>No. Images are optional on every board, both for new threads and for replies. Some boards or threads may disable attachments entirely, in which case the uploader won't appear.</p>
+
+    <h2>Posting</h2>
+
+    <h3>How do I quote a post?</h3>
+    <p>Type <code>&gt;&gt;</code> followed by a post number to link and highlight that post (e.g. <code>&gt;&gt;12345</code>). A single <code>&gt;</code> at the start of a line turns it into greentext (e.g. <code>&gt;this happened</code> renders as <span style="color:var(--greentext)">&gt;this happened</span>).</p>
+
+    <h3>How do I link to another board?</h3>
+    <p>Type <code>&gt;&gt;&gt;</code> followed by a board's URI in slashes to point people at it (e.g. <code>&gt;&gt;&gt;/us-gen/</code>). Unlike a post quote, this just links to the board itself, not a specific thread or post.</p>
+
+    <h3>What other formatting is supported?</h3>
+    <p>PoliChan supports <code>**bold**</code>, <code>''italic''</code>, <code>~~strikethrough~~</code>, <code>==red text==</code>, inline <code>`code`</code>, fenced <code>[code]blocks[/code]</code>, and <code>[spoiler]hidden text[/spoiler]</code>. YouTube links and catbox.moe media links are embedded automatically.</p>
+
+    <h3>What does "sage" do?</h3>
+    <p>Typing <code>sage</code> into the [Name] field (or checking the sage option, where available) lets you reply to a thread without bumping it back to the top of the board.</p>
+
+    <h3>Why did my thread stop bumping?</h3>
+    <p>Every thread has a bump limit. Once a thread's reply count passes that limit, further replies no longer bump it, and it will gradually descend off the board as newer threads bump above it.</p>
+
+    <h3>Can I delete my own post?</h3>
+    <p>Not currently. Post deletion is handled by board moderators. If you posted something in error, use the report link and explain the issue.</p>
+
+    <h3>How do I report a post?</h3>
+    <p>Every post has a report option. Reports go straight to that board's moderators, so please only use it for genuine rule violations, not as a way to disagree with someone.</p>
+
+    <h2>Identity &amp; PoliPass</h2>
+
+    <h3>What is a tripcode?</h3>
+    <p>A tripcode is an optional identifier derived from a connected wallet, letting others recognize your posts across threads without revealing who you are. It's opt-in per post via a checkbox in the post form. Other posts remain fully anonymous.</p>
+
+    <h3>What is a flair?</h3>
+    <p>A flair is a small label shown next to a post, either a global flair anyone can choose, a board-specific variant, or a flair earned automatically by your PoliPass tier or on-chain holdings.</p>
+
+    <h3>What is PoliPass?</h3>
+    <p>PoliPass is an optional NFT-based membership with three tiers: Constituent, Member, and Minister. It unlocks flairs, removes ads, and may grant access to higher-tier boards. It is never required to read or post on the public boards. See <a href="/pass">/pass</a> for details.</p>
+
+    <h3>What do "mod" labels mean on a post?</h3>
+    <p>Posts made by board moderators or site staff are marked so they can be distinguished from regular posts, similar to a capcode on other imageboards.</p>
+
+    <h2>Rules &amp; Moderation</h2>
+
+    <h3>What are the rules?</h3>
+    <p>A board can set its own rules, shown via a [Rules] link on that board's page when set. Site-wide governance, including how moderators are appointed, is laid out in the <a href="/constitution">Constitution</a>.</p>
+
+    <h3>Why was my post or thread removed?</h3>
+    <p>Boards are actively moderated. Content that breaks a board's rules or the Constitution may be removed, and repeated violations can result in a ban. There's no public log of moderation actions.</p>
+
+    <h3 id="privacy">What information does PoliChan store about me?</h3>
+    <p>Your IP address is hashed before it's stored and is never shown publicly. It's used only for rate-limiting and ban enforcement. See the <a href="/legal">Legal</a> page for more.</p>
+
+    <h2>Support</h2>
+
+    <h3>How do I get in touch?</h3>
+    <p>For bugs, abuse reports, or takedown requests, see <a href="/contact">Contact</a>. For general feedback or discussion about the site itself, post in <a href="/meta/" data-nav>/meta/</a>.</p>
+
+    <h3>Can a new board be added?</h3>
+    <p>Possibly. New boards are added when there's enough demand to sustain one. Suggest a board in <a href="/meta/" data-nav>/meta/</a>.</p>
+
+  </div>
+</div>
+
+</body>
+</html>

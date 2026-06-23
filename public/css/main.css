@@ -605,6 +605,13 @@ img.expanded {
 }
 .postMessage .quotelink:hover { text-decoration: underline; }
 
+.postMessage .boardlink {
+  color: var(--quotelink);
+  font-weight: bold;
+  text-decoration: none;
+}
+.postMessage .boardlink:hover { text-decoration: underline; }
+
 .postMessage a { color: var(--link); text-decoration: none; }
 .postMessage a:hover { text-decoration: underline; }
 

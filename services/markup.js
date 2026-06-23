@@ -101,6 +101,11 @@ function parseLine(line) {
     return `<span class="greentext">&gt;${line.slice(4)}</span>`;
   }
 
+  // >>>/board/ cross-board links (must run before >>postId, since both start with &gt;&gt;)
+  line = line.replace(/&gt;&gt;&gt;\/([a-z0-9-]+)\//g, (_, uri) =>
+    `<a class="boardlink" href="/${uri}/" data-nav>&gt;&gt;&gt;/${uri}/</a>`
+  );
+
   // >>postId quote links
   line = line.replace(/&gt;&gt;(\d+)/g, (_, id) =>
     `<a class="quotelink" href="#p${id}">&gt;&gt;${id}</a>`

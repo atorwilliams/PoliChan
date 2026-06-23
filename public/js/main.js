@@ -14,8 +14,7 @@ const state = {
   currentThread:    null,
   boardThreads:     null,
   boardView:        localStorage.getItem('boardView') || 'catalog',
-  turnstileSiteKey: null,
-  _pendingQuote:    null
+  turnstileSiteKey: null
 };
 
 let _socket     = null;
@@ -335,8 +334,9 @@ async function loadIndex() {
         <div class="index-box" id="index-intro">
           <div class="index-box-header"><span>What is PoliChan?</span><button onclick="dismissIntro()" title="Close">✕</button></div>
           <div class="index-box-body">
-            <p>PoliChan is a political discussion imageboard for Canadian politics and beyond. No account is needed to post anonymously. Pick a board below and jump in. Wallet-linked tripcodes and PoliPass flairs are available for verified posters.</p>
-            <p>Be sure to check each board's rules before posting, and read the <a href="/constitution">Constitution</a> if you want to understand how PoliChan is governed.</p>
+            <p>PoliChan is a simple image-based bulletin board for political discussion. There are boards dedicated to a variety of topics, from general politics to specific countries and current events. Anyone can post without creating an account.</p>
+            <p>Pick a board below that catches your eye and dive in.</p>
+            <p>Be sure to familiarize yourself with each board's rules before posting, and read the <a href="/faq">FAQ</a> if you wish to learn more about how to use the site.</p>
           </div>
         </div>`;
     }
@@ -408,7 +408,7 @@ async function loadIndex() {
           <a href="/constitution">Constitution</a>
         </div>
         <div class="index-footer-links">
-          <a href="/about">About</a> &bull; <a href="/meta/" data-nav>Feedback</a> &bull; <a href="/legal">Legal</a> &bull; <a href="/contact">Contact</a>
+          <a href="/about">About</a> &bull; <a href="/faq">FAQ</a> &bull; <a href="/meta/" data-nav>Feedback</a> &bull; <a href="/legal">Legal</a> &bull; <a href="/contact">Contact</a>
         </div>
         <div class="index-footer-copyright">Copyright &copy; ${new Date().getFullYear()} PoliChan. All rights reserved.</div>
       </div>`;
@@ -831,7 +831,7 @@ async function loadArchive(uri, page = 1) {
           <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center">
             <div class="board-uri-label">/${esc(board.uri)}/</div>
             <h1>${esc(board.name)}</h1>
-            <div class="board-desc">Archive — ${total} thread${total !== 1 ? 's' : ''}</div>
+            <div class="board-desc">Archive: ${total} thread${total !== 1 ? 's' : ''}</div>
           </div>
         </div>
         <div class="board-actions">
@@ -1316,7 +1316,11 @@ function replyFormHtml(boardUri, threadId) {
     </div>`;
 }
 
+let _qrBoardUri = null, _qrThreadId = null;
+
 function setupQuickReply(boardUri, threadId) {
+  _qrBoardUri = boardUri;
+  _qrThreadId = threadId;
   let qr = document.getElementById('qr');
   if (!qr) {
     qr = document.createElement('div');
@@ -1360,31 +1364,23 @@ function setupQuickReply(boardUri, threadId) {
     </div>`;
 
   renderCaptchaIn('qr-captcha');
-
-  // Apply any pending quote from board-index navigation
-  if (state._pendingQuote) {
-    const body = document.getElementById('qr-body');
-    if (body) {
-      body.value = `>>${state._pendingQuote}\n`;
-      body.focus();
-      qr.classList.add('open');
-    }
-    state._pendingQuote = null;
-  }
 }
 
 function quotePost(postId, boardUri, threadId) {
+  // If quoting a post from a different board/thread than the one the quick
+  // reply box is currently bound to (e.g. replying from a catalog preview),
+  // rebind it first — otherwise the post would submit to the wrong thread.
+  if (boardUri && threadId != null && (boardUri !== _qrBoardUri || threadId !== _qrThreadId)) {
+    setupQuickReply(boardUri, threadId);
+  }
+
   const qr = document.getElementById('qr');
   if (qr) {
     qr.classList.add('open');
     const body = document.getElementById('qr-body');
     if (body) { body.value += `>>${postId}\n`; body.focus(); }
-  } else if (boardUri && threadId) {
-    // Board index — navigate to thread and apply quote once QR is ready
-    state._pendingQuote = postId;
-    navigate(`/${boardUri}/${threadId}`);
   } else {
-    // Fallback: inline reply form
+    // Fallback: inline reply form (no QR available on this page at all)
     const rpWrap = document.getElementById('rp-form-wrap');
     if (rpWrap) rpWrap.style.display = 'block';
     const body = document.getElementById('rp-body');

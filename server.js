@@ -111,6 +111,7 @@ app.get('/sitemap.xml', async (req, res) => {
     const urls = [
       `${base}/`,
       `${base}/about`,
+      `${base}/faq`,
       `${base}/constitution`,
       ...boards.map(b => `${base}/${b.uri}/`)
     ];
@@ -272,6 +273,7 @@ app.get('/pass',         (_req, res) => res.sendFile(path.join(__dirname, 'views
 app.get('/wall',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));
 app.get('/constitution', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'constitution.html')));
 app.get('/about',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'about.html')));
+app.get('/faq',          (_req, res) => res.sendFile(path.join(__dirname, 'views', 'faq.html')));
 app.get('/legal',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'legal.html')));
 app.get('/contact',      (_req, res) => res.sendFile(path.join(__dirname, 'views', 'contact.html')));
 
