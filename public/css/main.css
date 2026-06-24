@@ -208,6 +208,12 @@ a:hover { color: var(--quotelink); }
   font-size: 0.8rem;
   color: var(--muted);
 }
+.index-footer-stats {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.index-footer-stats a { color: var(--muted); text-decoration: underline; }
 
 .board-list-columns {
   column-width: 280px;

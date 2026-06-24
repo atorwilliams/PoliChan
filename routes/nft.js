@@ -12,9 +12,9 @@ const ABI = [
 ];
 
 const TIER_META = {
-  1: { name: 'Constituent', color: '#8B0000', accent: '#ff6b6b', text: '#ffffff' },
-  2: { name: 'Member',      color: '#1a2a4a', accent: '#4a90d9', text: '#e8f0ff' },
-  3: { name: 'Minister',    color: '#1a1200', accent: '#ffd700', text: '#ffd700' }
+  1: { name: 'Citizen',   color: '#8B0000', accent: '#ff6b6b', text: '#ffffff' },
+  2: { name: 'Bourgeois', color: '#1a2a4a', accent: '#4a90d9', text: '#e8f0ff' },
+  3: { name: 'Gentry',    color: '#1a1200', accent: '#ffd700', text: '#ffd700' }
 };
 
 const BASE_URL = 'https://forum.poli-map.org';

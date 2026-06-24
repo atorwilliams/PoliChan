@@ -182,6 +182,14 @@
       word-break: break-word;
     }
 
+    .wall-post-image {
+      max-width: 100%;
+      max-height: 480px;
+      display: block;
+      margin: 10px 0;
+      border: 1px solid var(--border);
+    }
+
     .wall-verify-link {
       font-size: 0.75rem;
       color: var(--muted);
@@ -222,7 +230,7 @@
 <div id="wall-page">
   <h1>Wall of Supporters</h1>
   <p class="subtitle">
-    Minister-tier pass holders only. Write whatever you want. Posts stay up forever,
+    Gentry-tier pass holders only. Write whatever you want. Posts stay up forever,
     signed by your wallet so authorship is provable. You don't need an account and
     posts are only removed if they break US law or the site's global rules.
   </p>
@@ -236,7 +244,7 @@
     <h2>New Post</h2>
     <div class="compose-field">
       <label>Display Name <span style="color:var(--muted)">(optional)</span></label>
-      <input type="text" id="c-name" placeholder="Anonymous Minister" maxlength="50">
+      <input type="text" id="c-name" placeholder="Anonymous Gentry" maxlength="50">
     </div>
     <div class="compose-field">
       <label>Title</label>
@@ -245,6 +253,10 @@
     <div class="compose-field">
       <label>Body</label>
       <textarea id="c-body" placeholder="Write whatever you want. This is permanent."></textarea>
+    </div>
+    <div class="compose-field">
+      <label>Image <span style="color:var(--muted)">(optional)</span></label>
+      <input type="file" id="c-image" accept="image/jpeg,image/png,image/gif,image/webp">
     </div>
     <div class="compose-anon">
       <input type="checkbox" id="c-anon">

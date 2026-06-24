@@ -18,7 +18,7 @@ const boardSchema = new mongoose.Schema({
   },
   rules:       { type: String, default: '' },
   isListed:    { type: Boolean, default: true },
-  // 0 = public, 1 = Constituent+, 2 = Member+, 3 = Minister only
+  // 0 = public, 1 = Citizen+, 2 = Bourgeois+, 3 = Gentry only
   minTier:     { type: Number, default: 0 },
   // Region lock — empty array means no restriction; populate with uppercase ISO-3166-1 alpha-2 codes (e.g. ['CA', 'US'])
   allowedCountries: [{ type: String }],

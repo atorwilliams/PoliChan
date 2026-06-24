@@ -190,7 +190,7 @@ function renderNav(activePath) {
     ? session.tripcode ? `!${session.tripcode}` : 'Connected'
     : 'Connect Wallet';
 
-  const TIER_NAMES = { 1: 'Constituent', 2: 'Member', 3: 'Minister' };
+  const TIER_NAMES = { 1: 'Citizen', 2: 'Bourgeois', 3: 'Gentry' };
   const tier = session?.poliPassTier || 0;
   const tierBadge = tier > 0
     ? `<a href="/pass" class="polipass-badge polipass-tier-${tier}">${TIER_NAMES[tier]}</a>`
@@ -411,11 +411,13 @@ async function loadIndex() {
           <a href="/about">About</a> &bull; <a href="/faq">FAQ</a> &bull; <a href="/meta/" data-nav>Feedback</a> &bull; <a href="/legal">Legal</a> &bull; <a href="/contact">Contact</a>
         </div>
         <div class="index-footer-copyright">Copyright &copy; ${new Date().getFullYear()} PoliChan. All rights reserved.</div>
+        <div class="index-footer-stats" id="index-stats"></div>
       </div>`;
 
     app.innerHTML = html;
     loadAnnouncementsInline();
     loadBanners('_index');
+    loadIndexStats();
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load boards: ${e.message}</div>`;
   }
@@ -672,6 +674,30 @@ async function loadAnnouncementsInline() {
       <button class="ann-dismiss" onclick="dismissAnnouncement('${a._id}')">Dismiss</button>
     </div>`).join('');
     box.style.display = 'block';
+  } catch (_) {}
+}
+
+async function loadIndexStats() {
+  const el = document.getElementById('index-stats');
+  if (!el) return;
+
+  try {
+    const stats = await api.get('/stats');
+    const parts = [];
+
+    parts.push(`${stats.totalPosts.toLocaleString()} posts across ${stats.totalThreads.toLocaleString()} threads`);
+    parts.push(`${stats.postsLast24h.toLocaleString()} in the last 24h`);
+
+    if (stats.launchDate) {
+      const launch = new Date(stats.launchDate).toLocaleDateString('en-CA');
+      parts.push(`running since ${launch}`);
+    }
+
+    if (stats.busiestBoard) {
+      parts.push(`busiest board: <a href="/${esc(stats.busiestBoard.uri)}/" data-nav>/${esc(stats.busiestBoard.uri)}/</a> (${stats.busiestBoard.postCount.toLocaleString()} posts)`);
+    }
+
+    el.innerHTML = parts.join(' &bull; ');
   } catch (_) {}
 }
 

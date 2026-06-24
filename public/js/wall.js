@@ -72,19 +72,23 @@ function renderPosts(posts) {
       : '';
 
     const sigShort = p.signature.slice(0, 20) + '…';
+    const imageHtml = p.media
+      ? `<img class="wall-post-image" src="${esc(p.media.url)}" alt="" loading="lazy">`
+      : '';
 
     return `
       <div class="wall-post">
         <div class="wall-post-header">
           <div class="wall-post-title">${esc(p.title)}</div>
           <div class="wall-post-meta">
-            <span class="wall-minister-badge">Minister</span>
+            <span class="wall-minister-badge">Gentry</span>
             &nbsp;${esc(formatDate(p.createdAt))}
           </div>
         </div>
         <div class="wall-post-author">${esc(p.displayName)}</div>
         ${walletHtml}
         <div class="wall-post-body">${esc(p.body)}</div>
+        ${imageHtml}
         <span class="wall-verify-link">
           Signature: <code title="${esc(p.signature)}">${esc(sigShort)}</code>
           — verifiable with any Ethereum signing tool
@@ -132,11 +136,17 @@ async function submitPost() {
     const message   = buildMessage(title, body);
     const signature = await _signer.signMessage(message);
 
-    const res = await fetch('/api/wall', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ address: _address, signature, displayName: name, title, body, isAnon })
-    });
+    const fd = new FormData();
+    fd.append('address', _address);
+    fd.append('signature', signature);
+    fd.append('displayName', name);
+    fd.append('title', title);
+    fd.append('body', body);
+    fd.append('isAnon', isAnon);
+    const imageFile = document.getElementById('c-image').files[0];
+    if (imageFile) fd.append('file', imageFile);
+
+    const res = await fetch('/api/wall', { method: 'POST', body: fd });
 
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Post failed.'; return; }
@@ -145,6 +155,7 @@ async function submitPost() {
     document.getElementById('compose-wrap').style.display = 'none';
     document.getElementById('c-title').value = '';
     document.getElementById('c-body').value  = '';
+    document.getElementById('c-image').value = '';
     await loadPosts();
   } catch (e) {
     errEl.textContent = e.message || 'Something went wrong.';

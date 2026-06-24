@@ -14,7 +14,7 @@ const ABI = [
   'function upgrade(uint8 newTier) payable',
 ];
 
-const TIER_NAMES = { 1: 'Constituent', 2: 'Member', 3: 'Minister' };
+const TIER_NAMES = { 1: 'Citizen', 2: 'Bourgeois', 3: 'Gentry' };
 
 let provider  = null;
 let contract  = null;

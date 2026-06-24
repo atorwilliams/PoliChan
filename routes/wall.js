@@ -5,6 +5,8 @@ const router     = express.Router();
 const { ethers } = require('ethers');
 const WallPost   = require('../models/WallPost');
 const config     = require('../config');
+const upload     = require('../middleware/upload');
+const media      = require('../services/media');
 
 const POLIPASS_ABI = ['function getTier(address wallet) view returns (uint8)'];
 
@@ -27,12 +29,13 @@ router.get('/', async (req, res) => {
 
     res.json({ posts: posts.map(p => ({
       _id:         p._id,
-      displayName: p.isAnon ? 'Anonymous Minister' : (p.displayName || 'Anonymous Minister'),
+      displayName: p.isAnon ? 'Anonymous Gentry' : (p.displayName || 'Anonymous Gentry'),
       wallet:      p.isAnon ? null : p.walletAddress,
       title:       p.title,
       body:        p.body,
       signature:   p.signature,
-      createdAt:   p.createdAt
+      createdAt:   p.createdAt,
+      media:       p.media ? { url: `/uploads/wall/${p.media.storedName}`, width: p.media.width, height: p.media.height } : null
     })) });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,7 +43,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/wall — submit a wall post
-router.post('/', async (req, res) => {
+router.post('/', upload, async (req, res) => {
   try {
     const { address, signature, displayName, title, body, isAnon } = req.body;
 
@@ -57,25 +60,35 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Signature does not match address' });
     }
 
-    // 2. Verify Minister tier
+    // 2. Verify Gentry tier
     const provider = await getProvider();
     const contract = new ethers.Contract(config.polipass.address, POLIPASS_ABI, provider);
     const tier     = await contract.getTier(address.toLowerCase());
     if (Number(tier) < 3) {
-      return res.status(403).json({ error: 'A Minister-tier PoliPass is required' });
+      return res.status(403).json({ error: 'A Gentry-tier PoliPass is required' });
     }
 
     // 3. Prevent duplicate submissions (same wallet + same title + body)
     const existing = await WallPost.findOne({ walletAddress: address.toLowerCase(), title: title.trim() });
     if (existing) return res.status(409).json({ error: 'You already have a post with that title' });
 
+    // 4. Optional image attachment (video not allowed on the Wall)
+    let mediaDoc = null;
+    if (req.file) {
+      if (!req.file.mimetype.startsWith('image/')) {
+        return res.status(400).json({ error: 'Only images can be attached to a Wall post' });
+      }
+      mediaDoc = await media.processUpload(req.file, 'wall');
+    }
+
     const post = await WallPost.create({
       walletAddress: address.toLowerCase(),
       displayName:   displayName?.trim().slice(0, 50) || '',
-      isAnon:        !!isAnon,
+      isAnon:        isAnon === 'true' || isAnon === true,
       title:         title.trim(),
       body:          body.trim(),
-      signature
+      signature,
+      media:         mediaDoc
     });
 
     res.status(201).json({ ok: true, id: post._id });

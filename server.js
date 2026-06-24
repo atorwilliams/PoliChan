@@ -137,6 +137,7 @@ app.use('/api/posts',   require('./routes/posts'));
 app.use('/api/polls',   require('./routes/polls'));
 app.use('/api/mod',     require('./routes/mod'));
 app.use('/api/wall',    require('./routes/wall'));
+app.use('/api/stats',   require('./routes/stats'));
 app.use('/admin',       require('./routes/admin'));
 app.use('/manage',      require('./routes/manage'));
 
