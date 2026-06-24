@@ -41,6 +41,11 @@ window.onTurnstileLoad = function () {
   _turnstileQueue.length = 0;
 };
 
+// index.html stubs window.onTurnstileLoad before the async Turnstile script tag,
+// since that script can finish loading (and call it) before this file runs. If it
+// already fired by the time we get here, run the real handler immediately.
+if (window._turnstileApiReady) window.onTurnstileLoad();
+
 function _whenCaptchaReady(fn) {
   if (_turnstileReady) fn(); else _turnstileQueue.push(fn);
 }

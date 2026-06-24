@@ -59,7 +59,7 @@ function generateEmbeds(rawBody) {
     parts.push(
       `<div class="post-embed yt-embed">` +
       `<iframe src="https://www.youtube-nocookie.com/embed/${id}?origin=https://polichan.org" ` +
-      `frameborder="0" allowfullscreen loading="lazy" ` +
+      `frameborder="0" loading="lazy" ` +
       `allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;fullscreen">` +
       `</iframe></div>`
     );

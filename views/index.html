@@ -17,6 +17,9 @@
     <button onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})">Bottom</button>
   </div>
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Turnstile's onload callback can fire before main.js (loaded after, no defer)
+       has run, since this script is async. Stub it here so the name always exists. -->
+  <script>window._turnstileApiReady = false; window.onTurnstileLoad = function () { window._turnstileApiReady = true; };</script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad" async defer></script>
   <script src="/.static/js/main.js"></script>
 </body>
