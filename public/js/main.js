@@ -400,6 +400,12 @@ async function loadIndex() {
       </div>`;
 
     html += `
+      <div class="index-box" id="index-stats-box">
+        <div class="index-box-header"><span>Stats</span></div>
+        <div class="index-box-body" id="index-stats">Loading…</div>
+      </div>`;
+
+    html += `
       <div class="index-footer">
         <div class="index-footer-tabs">
           <a href="/" data-nav>Boards</a>
@@ -411,7 +417,6 @@ async function loadIndex() {
           <a href="/about">About</a> &bull; <a href="/faq">FAQ</a> &bull; <a href="/meta/" data-nav>Feedback</a> &bull; <a href="/legal">Legal</a> &bull; <a href="/contact">Contact</a>
         </div>
         <div class="index-footer-copyright">Copyright &copy; ${new Date().getFullYear()} PoliChan. All rights reserved.</div>
-        <div class="index-footer-stats" id="index-stats"></div>
       </div>`;
 
     app.innerHTML = html;
@@ -697,8 +702,10 @@ async function loadIndexStats() {
       parts.push(`busiest board: <a href="/${esc(stats.busiestBoard.uri)}/" data-nav>/${esc(stats.busiestBoard.uri)}/</a> (${stats.busiestBoard.postCount.toLocaleString()} posts)`);
     }
 
-    el.innerHTML = parts.join(' &bull; ');
-  } catch (_) {}
+    el.innerHTML = `<p>${parts.join(' &bull; ')}</p>`;
+  } catch (_) {
+    el.textContent = 'Stats unavailable.';
+  }
 }
 
 function dismissAnnouncement(id) {
