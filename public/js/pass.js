@@ -158,6 +158,12 @@ async function doPurchase(tier, basePrice) {
     const c        = contract.connect(signer);
     const value    = withBuffer(basePrice);
 
+    const balance = await provider.getBalance(wallet);
+    if (balance < value) {
+      alert(`Insufficient balance: this tier costs ${formatEth(value)} ETH, but your wallet only has ${formatEth(balance)} ETH.`);
+      return;
+    }
+
     setAllButtons(true);
     showTx('Confirm the transaction in MetaMask…');
 
@@ -170,7 +176,7 @@ async function doPurchase(tier, basePrice) {
   } catch (e) {
     showTx('');
     setAllButtons(false);
-    if (e.code !== 'ACTION_REJECTED') alert('Transaction failed: ' + (e.reason || e.message));
+    if (e.code !== 'ACTION_REJECTED') alert('Transaction failed: ' + describeTxError(e));
   }
 }
 
@@ -179,6 +185,12 @@ async function doUpgrade(newTier, baseQuote) {
     const signer = await provider.getSigner();
     const c      = contract.connect(signer);
     const value  = withBuffer(baseQuote);
+
+    const balance = await provider.getBalance(wallet);
+    if (balance < value) {
+      alert(`Insufficient balance: this upgrade costs ${formatEth(value)} ETH, but your wallet only has ${formatEth(balance)} ETH.`);
+      return;
+    }
 
     setAllButtons(true);
     showTx('Confirm the transaction in MetaMask…');
@@ -192,7 +204,7 @@ async function doUpgrade(newTier, baseQuote) {
   } catch (e) {
     showTx('');
     setAllButtons(false);
-    if (e.code !== 'ACTION_REJECTED') alert('Transaction failed: ' + (e.reason || e.message));
+    if (e.code !== 'ACTION_REJECTED') alert('Transaction failed: ' + describeTxError(e));
   }
 }
 
@@ -209,6 +221,19 @@ function formatEth(wei) {
 
 function setAllButtons(disabled) {
   document.querySelectorAll('.tier-action').forEach(b => { b.disabled = disabled; });
+}
+
+// Translate ethers/MetaMask error codes into a readable message.
+// estimateGas fails with no revert data when the wallet can't cover
+// value + gas, so e.reason/e.message are unhelpful for that case.
+function describeTxError(e) {
+  if (e.code === 'ACTION_REJECTED') return 'Cancelled in wallet.';
+  if (e.code === 'INSUFFICIENT_FUNDS') return 'Insufficient ETH balance to cover this transaction plus gas.';
+  if (e.reason) return e.reason;
+  if (e.code === 'CALL_EXCEPTION' && !e.reason) {
+    return 'Insufficient ETH balance to cover this transaction plus gas.';
+  }
+  return e.message;
 }
 
 function showTx(msg) {
