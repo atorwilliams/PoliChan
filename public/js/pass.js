@@ -133,7 +133,7 @@ async function refresh() {
       const quote = await contract.upgradeQuote(wallet, t);
       const btn = document.createElement('button');
       btn.className   = 'tier-action';
-      btn.textContent = `Upgrade — ${formatEth(quote)} ETH`;
+      btn.textContent = `Upgrade for ${formatEth(quote)} ETH`;
       btn.onclick     = () => doUpgrade(t, quote);
       actionEl.innerHTML = '';
       actionEl.appendChild(btn);
@@ -142,7 +142,7 @@ async function refresh() {
       // Fresh mint
       const btn = document.createElement('button');
       btn.className   = 'tier-action';
-      btn.textContent = `Mint — ${formatEth(prices[t])} ETH`;
+      btn.textContent = `Mint for ${formatEth(prices[t])} ETH`;
       btn.onclick     = () => doPurchase(t, prices[t]);
       actionEl.innerHTML = '';
       actionEl.appendChild(btn);
@@ -168,7 +168,7 @@ async function doPurchase(tier, basePrice) {
     showTx('Confirm the transaction in MetaMask…');
 
     const tx = await c.purchase(tier, { value });
-    showTx('Transaction sent — waiting for confirmation…');
+    showTx('Transaction sent. Waiting for confirmation…');
     await tx.wait();
 
     showTx('');
@@ -196,7 +196,7 @@ async function doUpgrade(newTier, baseQuote) {
     showTx('Confirm the transaction in MetaMask…');
 
     const tx = await c.upgrade(newTier, { value });
-    showTx('Transaction sent — waiting for confirmation…');
+    showTx('Transaction sent. Waiting for confirmation…');
     await tx.wait();
 
     showTx('');

@@ -84,7 +84,7 @@ async function refreshFounder() {
       statusEl.textContent = 'Claim window has closed.';
       actionEl.innerHTML = '<button class="badge-action" disabled>Window closed</button>';
     } else {
-      statusEl.textContent = 'Available — first week only.';
+      statusEl.textContent = 'Available now. First week only.';
       const btn = document.createElement('button');
       btn.className   = 'badge-action';
       btn.textContent = 'Claim Founder Badge';
@@ -116,7 +116,7 @@ async function refreshMedal() {
     medalContract = new ethers.Contract(address, MEDAL_ABI, provider);
 
     const year = Number(await medalContract.currentYear());
-    document.getElementById('medal-name').textContent = `Service Medal — ${year}`;
+    document.getElementById('medal-name').textContent = `Service Medal ${year}`;
     document.getElementById('medal-year-label').textContent = year;
     document.getElementById('medal-art').src = `/medal/image/${year}`;
 
@@ -160,7 +160,7 @@ async function doClaim(contract, btn, which) {
     showTx('Confirm the transaction in MetaMask…');
 
     const tx = await c.claim();
-    showTx('Transaction sent — waiting for confirmation…');
+    showTx('Transaction sent. Waiting for confirmation…');
     await tx.wait();
 
     showTx('');

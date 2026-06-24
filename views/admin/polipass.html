@@ -138,7 +138,7 @@
       statusEl.textContent = 'Confirm the transaction in MetaMask…';
       const signer = await provider.getSigner();
       const tx = await contract.connect(signer).setPrice(tier, price);
-      statusEl.textContent = 'Transaction sent — waiting for confirmation…';
+      statusEl.textContent = 'Transaction sent. Waiting for confirmation…';
       await tx.wait();
       statusEl.className = 'ok';
       statusEl.textContent = `${TIER_NAMES[tier]} price updated to $${price} USD.`;
