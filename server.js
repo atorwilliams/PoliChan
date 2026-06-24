@@ -78,7 +78,11 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // Helmet's default ('no-referrer') strips the referrer entirely, which breaks
+  // YouTube embed playback (error 153) since the player can't see what domain
+  // is hosting it. This still only ever leaks the origin, never the full path.
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
 app.use(express.json());
