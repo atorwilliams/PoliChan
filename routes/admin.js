@@ -105,6 +105,7 @@ router.get('/banners',         view('banners'));
 router.get('/announcements',   view('announcements'));
 router.get('/ads',             view('ads'));
 router.get('/country-flairs',  view('country-flairs'));
+router.get('/polipass',        view('polipass'));
 
 // ── Country Flairs ────────────────────────────────────────────────────────────
 

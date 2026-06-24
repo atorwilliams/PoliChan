@@ -7,7 +7,7 @@ const flairRuleSchema = new mongoose.Schema({
   label:        { type: String, required: true },   // Text shown on posts (e.g. "Gold Donor")
   color:        { type: String, default: '#ffffff' },  // Text colour
   bgColor:      { type: String, default: '#b8860b' },  // Badge background
-  matchType:    { type: String, enum: ['erc20', 'erc721', 'erc1155', 'manual', 'politician_sbt', 'polipass'], required: true },
+  matchType:    { type: String, enum: ['erc20', 'erc721', 'erc1155', 'manual', 'politician_sbt', 'polipass', 'polipass_manual'], required: true },
   tokenAddress: { type: String, default: null },    // Contract address (not used for manual)
   tokenId:      { type: String, default: null },    // Specific token ID for ERC1155
   chainId:      { type: Number, default: 1 },       // 1=Ethereum, 137=Polygon, 8453=Base

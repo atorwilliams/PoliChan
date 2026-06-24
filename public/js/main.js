@@ -201,6 +201,7 @@ function renderNav(activePath) {
   const navLinks = isIndex ? watchedLink : `
       <a href="/" data-nav>Boards</a>
       <a href="/pass" ${activePath === '/pass' ? 'class="active"' : ''}>PoliPass</a>
+      <a href="/badges" ${activePath === '/badges' ? 'class="active"' : ''}>Badges</a>
       <a href="/wall" ${activePath === '/wall' ? 'class="active"' : ''}>Wall</a>
       <a href="/constitution" ${activePath === '/constitution' ? 'class="active"' : ''}>Constitution</a>
       ${watchedLink}`;
@@ -410,6 +411,7 @@ async function loadIndex() {
         <div class="index-footer-tabs">
           <a href="/" data-nav>Boards</a>
           <a href="/pass">PoliPass</a>
+          <a href="/badges">Badges</a>
           <a href="/wall">Wall</a>
           <a href="/constitution">Constitution</a>
         </div>

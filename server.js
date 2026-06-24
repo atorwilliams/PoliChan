@@ -142,7 +142,9 @@ app.use('/admin',       require('./routes/admin'));
 app.use('/manage',      require('./routes/manage'));
 
 // NFT metadata + images
-app.use('/pass', require('./routes/nft'));
+app.use('/pass',    require('./routes/nft'));
+app.use('/founder', require('./routes/founder'));
+app.use('/medal',   require('./routes/medal'));
 
 // Public announcements API
 app.get('/api/announcements', async (_req, res) => {
@@ -197,6 +199,14 @@ app.get('/api/constitution', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Public badges config (FounderToken / ServiceMedal contract addresses, possibly unset)
+app.get('/api/badges/config', (_req, res) => {
+  res.json({
+    founderToken: config.founderToken,
+    serviceMedal: config.serviceMedal
+  });
 });
 
 // Public ads API
@@ -271,6 +281,7 @@ app.post('/api/ads/:advertiserId/:adId/click', async (req, res) => {
 
 // Static pages — must be before the catch-all
 app.get('/pass',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'pass.html')));
+app.get('/badges',       (_req, res) => res.sendFile(path.join(__dirname, 'views', 'badges.html')));
 app.get('/wall',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));
 app.get('/constitution', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'constitution.html')));
 app.get('/about',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'about.html')));

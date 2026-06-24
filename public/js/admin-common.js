@@ -10,6 +10,7 @@ function adminNav(active) {
     { href: '/admin/bans',     label: 'Bans'      },
     { href: '/admin/accounts', label: 'Accounts'  },
     { href: '/admin/flairs',      label: 'Flairs'      },
+    { href: '/admin/polipass',    label: 'PoliPass'    },
     { href: '/admin/polls',       label: 'Polls'       },
     { href: '/admin/wordfilter',  label: 'Word Filter' },
     { href: '/admin/verified',        label: 'Verified'        },

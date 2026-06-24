@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Badges — PoliChan</title>
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/.static/css/main.css">
+  <style>
+    #badges-page {
+      max-width: 860px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+
+    #badges-page h1 {
+      font-size: 1.4rem;
+      color: var(--subject);
+      margin-bottom: 4px;
+    }
+
+    #badges-page .subtitle {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 24px;
+    }
+
+    #connect-prompt {
+      text-align: center;
+      padding: 40px;
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      margin-bottom: 24px;
+    }
+
+    #connect-prompt p {
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-size: 0.9rem;
+    }
+
+    #connect-prompt button {
+      padding: 9px 24px;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #connect-prompt button:hover { background: var(--red-dark); }
+
+    .badge-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .badge-card {
+      background: var(--op-bg);
+      border: 1px solid var(--border-form);
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .badge-card img.badge-art {
+      width: 100%;
+      max-width: 220px;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      margin: 0 auto 14px;
+      display: block;
+      border: 1px solid var(--border);
+    }
+
+    .badge-card .badge-name {
+      font-size: 1rem;
+      font-weight: bold;
+      color: var(--subject);
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .badge-card .badge-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.5;
+      text-align: center;
+      flex-grow: 1;
+    }
+
+    .badge-card .badge-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 10px;
+      min-height: 1.2em;
+    }
+
+    .badge-card .badge-action {
+      width: 100%;
+      padding: 7px 0;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .badge-card .badge-action:hover:not(:disabled) { background: var(--red-dark); }
+
+    .badge-card .badge-action:disabled {
+      background: var(--muted);
+      cursor: default;
+    }
+
+    .badge-card .badge-claimed-label {
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--red);
+      padding: 7px 0;
+      border: 2px solid var(--red);
+    }
+
+    .tx-pending {
+      text-align: center;
+      padding: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+      .badge-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="nav">
+  <a class="brand" href="/">Poli<span>Chan</span></a>
+  <div class="nav-links">
+    <a href="/">Boards</a>
+    <a href="/pass">PoliPass</a>
+    <a href="/badges" class="active" style="color:#fff;font-weight:bold">Badges</a>
+  </div>
+  <div class="nav-right">
+    <button id="walletBtn">Connect Wallet</button>
+  </div>
+</div>
+
+<div id="badges-page">
+  <h1>Badges</h1>
+  <p class="subtitle">Free, soulbound collectibles — proof you were here. Not for sale, can't be transferred.</p>
+
+  <div id="connect-prompt">
+    <p>Connect your wallet to check eligibility and claim.</p>
+    <button id="connectBtn">Connect MetaMask</button>
+  </div>
+
+  <div class="badge-cards" id="badge-cards" style="display:none">
+    <div class="badge-card" id="card-founder">
+      <img class="badge-art" src="/founder/image" alt="Founder badge">
+      <div class="badge-name">Founder</div>
+      <div class="badge-desc">Claimed during the first week PoliChan was live. Permanent, lifetime, one per wallet.</div>
+      <div class="badge-status" id="status-founder"></div>
+      <div id="action-founder"></div>
+    </div>
+
+    <div class="badge-card" id="card-medal">
+      <img class="badge-art" id="medal-art" src="/medal/image/2026" alt="Service medal badge">
+      <div class="badge-name" id="medal-name">Service Medal</div>
+      <div class="badge-desc">"I was here in <span id="medal-year-label">this year</span>." One per wallet, per calendar year. Claim again next year.</div>
+      <div class="badge-status" id="status-medal"></div>
+      <div id="action-medal"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="/.static/js/badges.js?v=1"></script>
+</body>
+</html>

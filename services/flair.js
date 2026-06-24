@@ -23,6 +23,12 @@ async function checkRule(rule, address) {
     return rule.wallets.includes(address.toLowerCase());
   }
 
+  if (rule.matchType === 'polipass_manual') {
+    if (!rule.wallets.includes(address.toLowerCase())) return false;
+    const tier = Number(rule.minBalance || '1');
+    return tier >= 1 && tier <= 3 ? tier : false;
+  }
+
   try {
     const provider = getProvider(rule.chainId);
 
@@ -68,12 +74,13 @@ async function checkRule(rule, address) {
 // Tiebreaker when two rules share the same priority number.
 // Higher rank = wins.
 const TYPE_RANK = {
-  politician_sbt: 50,
-  polipass:       45,
-  erc721:         40,
-  erc1155:        30,
-  erc20:          20,
-  manual:         10
+  politician_sbt:  50,
+  polipass:        45,
+  polipass_manual: 44,
+  erc721:          40,
+  erc1155:         30,
+  erc20:           20,
+  manual:          10
 };
 
 async function getFlairForWallet(address) {
@@ -97,7 +104,7 @@ async function getFlairForWallet(address) {
         label:        rule.matchType === 'politician_sbt' ? result : rule.label,
         color:        rule.color,
         bgColor:      rule.bgColor,
-        poliPassTier: rule.matchType === 'polipass' ? result : 0
+        poliPassTier: (rule.matchType === 'polipass' || rule.matchType === 'polipass_manual') ? result : 0
       };
     }
   }

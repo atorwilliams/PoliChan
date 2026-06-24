@@ -72,6 +72,17 @@ module.exports = {
     chainId: parseInt(process.env.POLIPASS_CHAIN_ID) || 11155111
   },
 
+  // Not deployed yet -- address stays null until the contract is actually deployed
+  // and the env var is set. Routes/UI must handle a null address gracefully.
+  founderToken: {
+    address: process.env.FOUNDER_TOKEN_ADDRESS || null,
+    chainId: parseInt(process.env.FOUNDER_TOKEN_CHAIN_ID) || 8453
+  },
+  serviceMedal: {
+    address: process.env.SERVICE_MEDAL_ADDRESS || null,
+    chainId: parseInt(process.env.SERVICE_MEDAL_CHAIN_ID) || 8453
+  },
+
   wipe: {
     pubkey1: process.env.WIPE_PUBKEY_1 || null,
     pubkey2: process.env.WIPE_PUBKEY_2 || null

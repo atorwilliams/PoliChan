@@ -1,9 +1,13 @@
 'use strict';
 
+const path    = require('path');
+const fs      = require('fs');
 const express = require('express');
 const router  = express.Router();
 const { ethers } = require('ethers');
 const config  = require('../config');
+
+const ART_DIR = path.join(__dirname, '..', 'public', 'images', 'pass');
 
 const ABI = [
   'function tokenTier(uint256 tokenId) view returns (uint8)',
@@ -12,10 +16,20 @@ const ABI = [
 ];
 
 const TIER_META = {
-  1: { name: 'Citizen',   color: '#8B0000', accent: '#ff6b6b', text: '#ffffff' },
-  2: { name: 'Bourgeois', color: '#1a2a4a', accent: '#4a90d9', text: '#e8f0ff' },
-  3: { name: 'Gentry',    color: '#1a1200', accent: '#ffd700', text: '#ffd700' }
+  1: { name: 'Citizen',   slug: 'citizen',   color: '#8B0000', accent: '#ff6b6b', text: '#ffffff' },
+  2: { name: 'Bourgeois', slug: 'bourgeois', color: '#1a2a4a', accent: '#4a90d9', text: '#e8f0ff' },
+  3: { name: 'Gentry',    slug: 'gentry',    color: '#1a1200', accent: '#ffd700', text: '#ffd700' }
 };
+
+// Looks for public/images/pass/<slug>.(png|jpg|jpeg|webp) — drop a file there to
+// replace the generated SVG for that tier with real artwork, no code changes needed.
+function findArtFile(slug) {
+  for (const ext of ['.png', '.jpg', '.jpeg', '.webp']) {
+    const file = path.join(ART_DIR, slug + ext);
+    if (fs.existsSync(file)) return file;
+  }
+  return null;
+}
 
 const BASE_URL = 'https://forum.poli-map.org';
 
@@ -32,6 +46,12 @@ router.get('/image/:tier([1-3])', (req, res) => {
   const tier = parseInt(req.params.tier);
   const meta = TIER_META[tier];
   if (!meta) return res.status(404).send('Not found');
+
+  const artFile = findArtFile(meta.slug);
+  if (artFile) {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(artFile);
+  }
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">

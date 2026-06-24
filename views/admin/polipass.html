@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PoliPass — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .pp-box {
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 24px;
+      background: var(--surface);
+      max-width: 560px;
+      margin-bottom: 24px;
+    }
+    .pp-box h2 { margin: 0 0 8px; font-size: 1.05rem; }
+    .pp-box p  { color: var(--muted); margin: 0 0 16px; font-size: 0.85rem; line-height: 1.5; }
+    .pp-box label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .pp-box select, .pp-box input[type=text], .pp-box input[type=number] {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg, #111); border: 1px solid var(--border);
+      border-radius: 4px; color: #fff; font-size: 0.88rem;
+      padding: 8px 10px; margin-bottom: 14px;
+    }
+    .pp-prices { font-family: monospace; font-size: 0.85rem; color: #ddd; margin-bottom: 16px; }
+    .pp-prices div { padding: 3px 0; }
+    #pp-status { font-size: 0.82rem; color: var(--muted); margin-top: 10px; min-height: 1.2em; }
+    #pp-status.ok  { color: #22c55e; }
+    #pp-status.err { color: #ef4444; }
+  </style>
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header">
+    <h1>PoliPass</h1>
+  </div>
+
+  <div class="pp-box">
+    <h2>Tier Pricing</h2>
+    <p>
+      Prices live on the PoliPass contract itself (Base mainnet) and are read via Chainlink at purchase time.
+      Updating a price requires signing a transaction with the contract owner wallet — connect it below.
+    </p>
+
+    <div class="pp-prices" id="pp-current-prices">Connect wallet to load current prices…</div>
+
+    <button class="btn" id="pp-connect-btn">Connect Owner Wallet</button>
+
+    <div style="margin-top:18px">
+      <label>Tier</label>
+      <select id="pp-tier">
+        <option value="1">1 — Citizen</option>
+        <option value="2">2 — Bourgeois</option>
+        <option value="3">3 — Gentry</option>
+      </select>
+
+      <label>New price (USD)</label>
+      <input type="number" id="pp-new-price" min="1" step="1" placeholder="50">
+
+      <button class="btn" id="pp-set-price-btn" disabled>Update Price</button>
+      <div id="pp-status"></div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/polipass');
+
+  const CONTRACT_ADDRESS = '0xb0d5b064d38ac1abd4202dcfa08c51cad02220c1';
+  const CHAIN_ID = 8453;
+  const ABI = [
+    'function usdPrice(uint8) view returns (uint256)',
+    'function setPrice(uint8 tier, uint256 newUsdPrice) external'
+  ];
+  const TIER_NAMES = { 1: 'Citizen', 2: 'Bourgeois', 3: 'Gentry' };
+
+  let provider = null;
+  let contract = null;
+
+  async function loadPrices(readContract) {
+    const el = document.getElementById('pp-current-prices');
+    try {
+      const rows = await Promise.all([1, 2, 3].map(async t => {
+        const usd = await readContract.usdPrice(t);
+        return `<div>${TIER_NAMES[t]}: $${usd.toString()} USD</div>`;
+      }));
+      el.innerHTML = rows.join('');
+    } catch (e) {
+      el.textContent = 'Failed to load prices: ' + e.message;
+    }
+  }
+
+  document.getElementById('pp-connect-btn').addEventListener('click', async () => {
+    if (!window.ethereum) { alert('MetaMask not found.'); return; }
+
+    const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
+    if (parseInt(chainHex, 16) !== CHAIN_ID) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x' + CHAIN_ID.toString(16) }]
+        });
+      } catch {
+        alert('Please switch MetaMask to Base mainnet.');
+        return;
+      }
+    }
+
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!accounts.length) return;
+
+    provider = new ethers.BrowserProvider(window.ethereum);
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+
+    document.getElementById('pp-connect-btn').textContent =
+      accounts[0].slice(0, 6) + '…' + accounts[0].slice(-4);
+    document.getElementById('pp-set-price-btn').disabled = false;
+
+    await loadPrices(contract);
+  });
+
+  document.getElementById('pp-set-price-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('pp-status');
+    const tier  = parseInt(document.getElementById('pp-tier').value);
+    const price = parseInt(document.getElementById('pp-new-price').value);
+
+    statusEl.className = '';
+    if (!price || price < 1) { statusEl.className = 'err'; statusEl.textContent = 'Enter a valid USD price.'; return; }
+    if (!contract) { statusEl.className = 'err'; statusEl.textContent = 'Connect the owner wallet first.'; return; }
+
+    const btn = document.getElementById('pp-set-price-btn');
+    try {
+      btn.disabled = true;
+      statusEl.textContent = 'Confirm the transaction in MetaMask…';
+      const signer = await provider.getSigner();
+      const tx = await contract.connect(signer).setPrice(tier, price);
+      statusEl.textContent = 'Transaction sent — waiting for confirmation…';
+      await tx.wait();
+      statusEl.className = 'ok';
+      statusEl.textContent = `${TIER_NAMES[tier]} price updated to $${price} USD.`;
+      await loadPrices(contract);
+    } catch (e) {
+      statusEl.className = 'err';
+      statusEl.textContent = e.reason || e.message || 'Transaction failed.';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

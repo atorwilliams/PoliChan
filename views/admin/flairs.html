@@ -15,7 +15,8 @@
       Rules are evaluated in descending priority order — the first match wins.<br>
       <strong>manual</strong> = explicit wallet list &nbsp;|&nbsp;
       <strong>erc20 / erc721 / erc1155</strong> = on-chain balance check &nbsp;|&nbsp;
-      <strong>polipass</strong> = PoliPass tier check (min balance = min tier: 1/2/3).
+      <strong>polipass</strong> = PoliPass tier check (min balance = min tier: 1/2/3) &nbsp;|&nbsp;
+      <strong>polipass friends &amp; family</strong> = grants a PoliPass tier to a wallet list with no on-chain mint, invisible to the public.
     </p>
 
     <button class="btn" onclick="openCreate()">+ New Rule</button>
@@ -86,6 +87,7 @@
             <option value="erc721">ERC-721 (NFT)</option>
             <option value="erc1155">ERC-1155 (multi-token)</option>
             <option value="polipass">PoliPass (tiered pass)</option>
+            <option value="polipass_manual">PoliPass — friends &amp; family (manual, hidden)</option>
           </select>
         </div>
 
@@ -120,6 +122,15 @@
             <label>Wallets <span class="dim">(one per line, 0x…)</span></label>
             <textarea id="f-wallets" rows="4" placeholder="0xABC…&#10;0xDEF…" style="width:100%;font-family:monospace;font-size:.8rem;background:#111;color:#eee;border:1px solid #333;border-radius:4px;padding:6px;resize:vertical"></textarea>
           </div>
+        </div>
+
+        <div id="manual-tier-row" class="field-row" style="display:none">
+          <label>PoliPass tier to grant <span class="dim">(1=Citizen, 2=Bourgeois, 3=Gentry)</span></label>
+          <select id="f-manualTier">
+            <option value="1">1 — Citizen</option>
+            <option value="2">2 — Bourgeois</option>
+            <option value="3">3 — Gentry</option>
+          </select>
         </div>
 
         <div style="display:flex;gap:12px;">
@@ -197,6 +208,7 @@
       document.getElementById('f-minBalance').value = '1';
       document.getElementById('f-tokenId').value = '';
       document.getElementById('f-wallets').value = '';
+      document.getElementById('f-manualTier').value = '1';
       document.getElementById('f-priority').value = '0';
       document.getElementById('f-isActive').checked = true;
       updateMatchFields();
@@ -219,6 +231,7 @@
       document.getElementById('f-minBalance').value = r.minBalance || '1';
       document.getElementById('f-tokenId').value = r.tokenId || '';
       document.getElementById('f-wallets').value = (r.wallets || []).join('\n');
+      document.getElementById('f-manualTier').value = r.matchType === 'polipass_manual' ? (r.minBalance || '1') : '1';
       document.getElementById('f-priority').value = r.priority ?? 0;
       document.getElementById('f-isActive').checked = r.isActive !== false;
       updateMatchFields();
@@ -228,9 +241,11 @@
 
     function updateMatchFields() {
       const type = document.getElementById('f-matchType').value;
-      document.getElementById('token-fields').style.display  = type === 'manual' ? 'none' : '';
-      document.getElementById('wallet-fields').style.display = type === 'manual' ? ''     : 'none';
-      document.getElementById('tokenid-row').style.display   = type === 'erc1155' ? ''    : 'none';
+      const isManualWallets = type === 'manual' || type === 'polipass_manual';
+      document.getElementById('token-fields').style.display     = isManualWallets ? 'none' : '';
+      document.getElementById('wallet-fields').style.display    = isManualWallets ? ''     : 'none';
+      document.getElementById('manual-tier-row').style.display  = type === 'polipass_manual' ? '' : 'none';
+      document.getElementById('tokenid-row').style.display      = type === 'erc1155' ? ''    : 'none';
     }
 
     function syncColor(field) {
@@ -266,17 +281,20 @@
       e.preventDefault();
       const id   = document.getElementById('f-id').value;
       const type = document.getElementById('f-matchType').value;
+      const isManualWallets = type === 'manual' || type === 'polipass_manual';
       const body = {
         name:         document.getElementById('f-name').value.trim(),
         label:        document.getElementById('f-label').value.trim(),
         color:        document.getElementById('f-color').value,
         bgColor:      document.getElementById('f-bgColor').value,
         matchType:    type,
-        tokenAddress: type !== 'manual' ? document.getElementById('f-tokenAddress').value.trim() || null : null,
+        tokenAddress: isManualWallets ? null : document.getElementById('f-tokenAddress').value.trim() || null,
         tokenId:      type === 'erc1155' ? document.getElementById('f-tokenId').value.trim() || null : null,
-        chainId:      type !== 'manual' ? parseInt(document.getElementById('f-chainId').value) : 1,
-        minBalance:   type !== 'manual' ? document.getElementById('f-minBalance').value.trim() || '1' : '1',
-        wallets:      type === 'manual'
+        chainId:      isManualWallets ? 1 : parseInt(document.getElementById('f-chainId').value),
+        minBalance:   type === 'polipass_manual'
+          ? document.getElementById('f-manualTier').value
+          : (isManualWallets ? '1' : document.getElementById('f-minBalance').value.trim() || '1'),
+        wallets:      isManualWallets
           ? document.getElementById('f-wallets').value.split('\n').map(w => w.trim()).filter(Boolean)
           : [],
         priority:     parseInt(document.getElementById('f-priority').value) || 0,
