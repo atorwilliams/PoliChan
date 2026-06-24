@@ -85,11 +85,6 @@ async function refresh() {
   const currentTier = Number(tier);
   const expiryTs    = Number(expiry);
 
-  // Update live ETH prices
-  document.getElementById('price-1').textContent = formatEth(p1) + ' ETH';
-  document.getElementById('price-2').textContent = formatEth(p2) + ' ETH';
-  document.getElementById('price-3').textContent = formatEth(p3) + ' ETH';
-
   // Update status bar
   const statusEl = document.getElementById('pass-status');
   if (currentTier > 0) {

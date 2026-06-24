@@ -72,7 +72,7 @@ app.use(helmet({
       mediaSrc:    ["'self'", 'blob:', 'https:'],
       fontSrc:     ["'self'", 'data:'],
       connectSrc:  ["'self'", 'https://challenges.cloudflare.com', 'wss:', 'ws:'],
-      frameSrc:    ['https://challenges.cloudflare.com'],
+      frameSrc:    ['https://challenges.cloudflare.com', 'https://www.youtube-nocookie.com'],
       objectSrc:   ["'none'"],
       frameAncestors: ["'self'"]
     }
