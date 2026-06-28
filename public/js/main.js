@@ -1053,6 +1053,13 @@ function threadForm(boardUri) {
               Post with wallet tripcode (!${state.session.tripcode})
             </label></td>
           </tr>` : ''}
+          ${(state.session?.isAdmin || state.session?.staffRole === 'mod') ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="nt-anon" style="width:auto">
+              Post anonymously (hide Mod label)
+            </label></td>
+          </tr>` : ''}
         </tbody>
       </table>
       <div class="form-note" id="nt-error"></div>
@@ -1084,6 +1091,7 @@ async function submitThread(boardUri) {
     const fields = { subject, body, name, sage: options === 'sage' };
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('nt-tripcode')?.checked) fields.showTripcode = 'true';
+    if (document.getElementById('nt-anon')?.checked) fields.postAnon = 'true';
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
     addYourPost(threadId);
     watchThread(boardUri, threadId, subject || body.slice(0, 60), 0);
@@ -1341,6 +1349,13 @@ function replyFormHtml(boardUri, threadId) {
                   Post with wallet tripcode (!${state.session.tripcode})
                 </label></td>
               </tr>` : ''}
+              ${(state.session?.isAdmin || state.session?.staffRole === 'mod') ? `<tr>
+                <td class="lbl"></td>
+                <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+                  <input type="checkbox" id="rp-anon" style="width:auto">
+                  Post anonymously (hide Mod label)
+                </label></td>
+              </tr>` : ''}
             </tbody>
           </table>
           <div style="padding:5px 0">
@@ -1393,6 +1408,13 @@ function setupQuickReply(boardUri, threadId) {
             <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
               <input type="checkbox" id="qr-tripcode" style="width:auto">
               Post with wallet tripcode (!${state.session.tripcode})
+            </label></td>
+          </tr>` : ''}
+          ${(state.session?.isAdmin || state.session?.staffRole === 'mod') ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="qr-anon" style="width:auto">
+              Post anonymously (hide Mod label)
             </label></td>
           </tr>` : ''}
         </tbody>
@@ -1516,6 +1538,7 @@ async function submitReply(boardUri, threadId) {
     if (flairVariant !== undefined) fields.flairVariant = flairVariant;
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('rp-tripcode')?.checked) fields.showTripcode = 'true';
+    if (document.getElementById('rp-anon')?.checked) fields.postAnon = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     addYourPost(postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
@@ -1542,6 +1565,7 @@ async function submitQR(boardUri, threadId) {
     const fields = { body, name, sage: options === 'sage' };
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
+    if (document.getElementById('qr-anon')?.checked) fields.postAnon = 'true';
     const { postId } = await api.post(`/posts/${boardUri}/${threadId}`, fields);
     addYourPost(postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);

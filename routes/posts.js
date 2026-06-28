@@ -137,7 +137,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       flair:        postFlair,
       flairColor:   postFlairColor,
       flairBgColor: postFlairBgColor,
-      isModPost:    req.session?.isAdmin || req.session?.staffRole === 'mod'
+      isModPost:    (req.session?.isAdmin || req.session?.staffRole === 'mod') && req.body.postAnon !== 'true'
     });
 
     // Check sage
