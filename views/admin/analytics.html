@@ -13,7 +13,7 @@
     .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
     @media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
 
-    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 32px; }
     .chart-card h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
 
     .bars { display: flex; align-items: flex-end; gap: 2px; height: 140px; }
@@ -25,26 +25,34 @@
     table.analytics-table th, table.analytics-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
     table.analytics-table th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
 
+    .toolbar { display: flex; gap: 10px; align-items: center; }
     #rangeSelect { background: var(--surface); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.82rem; }
   </style>
 </head>
 <body>
 <div id="admin-nav"></div>
 <main>
-  <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
     <h1>Analytics</h1>
-    <select id="rangeSelect">
-      <option value="7">Last 7 days</option>
-      <option value="30" selected>Last 30 days</option>
-      <option value="90">Last 90 days</option>
-    </select>
+    <div class="toolbar">
+      <select id="rangeSelect">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365">Last 365 days</option>
+      </select>
+      <button class="btn btn-ghost" id="exportCsvBtn">Export CSV</button>
+      <button class="btn btn-ghost" id="exportJsonBtn">Export JSON</button>
+    </div>
   </div>
 
   <div class="stat-cards">
-    <div class="stat-card"><div class="val" id="statVisitors">—</div><div class="lbl">Unique Visitors / day (avg)</div></div>
+    <div class="stat-card"><div class="val" id="statVisitors">—</div><div class="lbl">Unique Visitors (total)</div></div>
+    <div class="stat-card"><div class="val" id="statLurkers">—</div><div class="lbl">Lurkers (never posted)</div></div>
     <div class="stat-card"><div class="val" id="statPosters">—</div><div class="lbl">Unique Posters</div></div>
     <div class="stat-card"><div class="val" id="statWallet">—</div><div class="lbl">Wallet vs Anon Posts</div></div>
     <div class="stat-card"><div class="val" id="statPosts">—</div><div class="lbl">Total Posts</div></div>
+    <div class="stat-card"><div class="val" id="statAvgVisitors">—</div><div class="lbl">Unique Visitors / day (avg)</div></div>
   </div>
 
   <div class="chart-row">
@@ -71,6 +79,8 @@
 <script>
   adminNav('/admin/analytics');
 
+  let _lastData = null;
+
   function renderBars(containerId, points, color) {
     const el = document.getElementById(containerId);
     const max = Math.max(1, ...points.map(p => p.count));
@@ -84,15 +94,18 @@
   async function load() {
     const days = document.getElementById('rangeSelect').value;
     const data = await api('GET', `/admin/api/analytics?days=${days}`);
+    _lastData = data;
 
     const avgVisitors = data.visitorsByDay.length
       ? Math.round(data.visitorsByDay.reduce((s, v) => s + v.count, 0) / data.visitorsByDay.length)
       : 0;
 
-    document.getElementById('statVisitors').textContent = avgVisitors;
-    document.getElementById('statPosters').textContent  = data.uniquePosters;
-    document.getElementById('statWallet').textContent   = `${data.walletPosts} / ${data.anonPosts}`;
-    document.getElementById('statPosts').textContent     = data.totalPosts;
+    document.getElementById('statVisitors').textContent    = data.uniqueVisitors;
+    document.getElementById('statLurkers').textContent     = data.lurkers;
+    document.getElementById('statPosters').textContent     = data.uniquePosters;
+    document.getElementById('statWallet').textContent      = `${data.walletPosts} / ${data.anonPosts}`;
+    document.getElementById('statPosts').textContent       = data.totalPosts;
+    document.getElementById('statAvgVisitors').textContent = avgVisitors;
 
     renderBars('visitorBars', data.visitorsByDay, '#4a90d9');
     renderBars('postBars',    data.postsByDay,    '#22c55e');
@@ -108,6 +121,64 @@
         `).join('')
       : '<tr><td colspan="3">No data yet.</td></tr>';
   }
+
+  // ── Export ────────────────────────────────────────────────────────────────────
+
+  function downloadFile(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function csvCell(v) {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function csvRow(cells) {
+    return cells.map(csvCell).join(',') + '\r\n';
+  }
+
+  function buildCsv(data) {
+    let csv = '';
+
+    csv += csvRow(['Metric', 'Value']);
+    csv += csvRow(['Date range (days)', data.days]);
+    csv += csvRow(['Unique visitors (total)', data.uniqueVisitors]);
+    csv += csvRow(['Lurkers (never posted)', data.lurkers]);
+    csv += csvRow(['Unique posters', data.uniquePosters]);
+    csv += csvRow(['Wallet posts', data.walletPosts]);
+    csv += csvRow(['Anon posts', data.anonPosts]);
+    csv += csvRow(['Total posts', data.totalPosts]);
+    csv += '\r\n';
+
+    csv += csvRow(['Date', 'Unique Visitors']);
+    data.visitorsByDay.forEach(v => { csv += csvRow([v.date, v.count]); });
+    csv += '\r\n';
+
+    csv += csvRow(['Date', 'Posts']);
+    data.postsByDay.forEach(p => { csv += csvRow([p.date, p.count]); });
+    csv += '\r\n';
+
+    csv += csvRow(['Board', 'Posts', 'Unique Visitors']);
+    data.popularBoards.forEach(b => { csv += csvRow([b.boardUri, b.posts, b.visits]); });
+
+    return csv;
+  }
+
+  document.getElementById('exportCsvBtn').addEventListener('click', () => {
+    if (!_lastData) return;
+    downloadFile(`polichan-analytics-${_lastData.days}d.csv`, buildCsv(_lastData), 'text/csv');
+  });
+
+  document.getElementById('exportJsonBtn').addEventListener('click', () => {
+    if (!_lastData) return;
+    downloadFile(`polichan-analytics-${_lastData.days}d.json`, JSON.stringify(_lastData, null, 2), 'application/json');
+  });
 
   document.getElementById('rangeSelect').addEventListener('change', () => load().catch(e => toast(e.message, true)));
   load().catch(e => toast(e.message, true));

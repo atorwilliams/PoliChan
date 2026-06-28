@@ -164,13 +164,14 @@ router.delete('/api/country-flairs/:id', requireAdmin, async (req, res) => {
 
 router.get('/api/analytics', async (req, res) => {
   try {
-    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 90);
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const sinceDate = since.toISOString().slice(0, 10);
 
     const [
       visitorsByDay,
       postsByDay,
+      uniqueVisitorHashes,
       uniquePosterHashes,
       walletPosts,
       totalPosts,
@@ -187,6 +188,7 @@ router.get('/api/analytics', async (req, res) => {
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
+      Visit.distinct('ipHash', { scope: 'site', date: { $gte: sinceDate } }),
       Post.distinct('ip', { createdAt: { $gte: since } }),
       Post.countDocuments({ createdAt: { $gte: since }, authorId: { $ne: null } }),
       Post.countDocuments({ createdAt: { $gte: since } }),
@@ -209,11 +211,19 @@ router.get('/api/analytics', async (req, res) => {
       visits:   viewsByBoard[b._id] || 0
     }));
 
+    const uniqueVisitors = uniqueVisitorHashes.length;
+    const uniquePosters  = uniquePosterHashes.length;
+
     res.json({
       days,
       visitorsByDay: visitorsByDay.map(v => ({ date: v._id, count: v.count })),
       postsByDay:    postsByDay.map(p => ({ date: p._id, count: p.count })),
-      uniquePosters: uniquePosterHashes.length,
+      uniqueVisitors,
+      uniquePosters,
+      // Visitors hashed via Visit who never appear as a poster's IP hash --
+      // floored at 0 since hashing means an exact match isn't guaranteed
+      // (e.g. a poster who only ever browsed from a different IP than they posted from).
+      lurkers: Math.max(0, uniqueVisitors - uniquePosters),
       walletPosts,
       anonPosts: totalPosts - walletPosts,
       totalPosts,
