@@ -63,7 +63,7 @@ module.exports = {
   rpc: {
     1:        process.env.RPC_ETH      || 'https://eth.llamarpc.com',
     137:      process.env.RPC_POLYGON  || 'https://polygon.llamarpc.com',
-    8453:     process.env.RPC_BASE     || 'https://base.llamarpc.com',
+    8453:     process.env.RPC_BASE     || 'https://mainnet.base.org',
     11155111: process.env.RPC_SEPOLIA  || 'https://sepolia.llamarpc.com'
   },
 

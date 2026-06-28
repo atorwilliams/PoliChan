@@ -31,7 +31,7 @@ function findArtFile(slug) {
   return null;
 }
 
-const BASE_URL = 'https://forum.poli-map.org';
+const BASE_URL = 'https://polichan.org';
 
 async function getContract() {
   const chainId = config.polipass.chainId;
@@ -109,7 +109,7 @@ router.get('/image/:tier([1-3])', (req, res) => {
   <text x="300" y="500" font-family="monospace" font-size="11" fill="${meta.accent}"
         text-anchor="middle" letter-spacing="3" opacity="0.5">TIER ${tier} OF 3</text>
   <text x="300" y="530" font-family="monospace" font-size="10" fill="${meta.text}"
-        text-anchor="middle" opacity="0.3">forum.poli-map.org</text>
+        text-anchor="middle" opacity="0.3">polichan.org</text>
 </svg>`;
 
   res.setHeader('Content-Type', 'image/svg+xml');
@@ -147,7 +147,7 @@ router.get('/metadata/:file', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=60');
     res.json({
       name:        `PoliPass #${tokenId} — ${meta.name}`,
-      description: `A ${meta.name}-tier PoliPass for PoliChan (forum.poli-map.org). Valid through ${expiryDate}. Grants access to tier-gated features on the forum.`,
+      description: `A ${meta.name}-tier PoliPass for PoliChan (polichan.org). Valid through ${expiryDate}. Grants access to tier-gated features on the forum.`,
       image:       `${BASE_URL}/pass/image/${tier}`,
       external_url: `${BASE_URL}/pass`,
       attributes: [
