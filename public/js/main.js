@@ -1461,6 +1461,19 @@ async function loadFlairPicker() {
       api.get('/auth/variants').catch(() => ({ variants: [] }))
     ]);
 
+    // Your own resolved flair (tier flair, politician SBT, manual rule, etc.) —
+    // shown first and selected by default, since that's what posting with no
+    // flairVariant at all would already resolve to server-side.
+    if (state.session?.flair) {
+      const opt = document.createElement('option');
+      opt.value           = 'default';
+      opt.textContent     = state.session.flair;
+      opt.dataset.color   = state.session.flairColor   || '';
+      opt.dataset.bgColor = state.session.flairBgColor || '';
+      select.insertBefore(opt, select.firstChild);
+      select.value = 'default';
+    }
+
     // Global flairs — available to everyone
     if (globalFlairs.length) {
       const grp = document.createElement('optgroup');
