@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Analytics — PoliChan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 32px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+    .stat-card .val { font-size: 2rem; font-weight: 700; color: #fff; }
+    .stat-card .lbl { font-size: 0.68rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+    @media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+    .chart-card h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .bars { display: flex; align-items: flex-end; gap: 2px; height: 140px; }
+    .bars .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+    .bars .bar { width: 100%; background: var(--accent, #4a90d9); border-radius: 2px 2px 0 0; min-height: 1px; }
+    .bars .bar-col:hover .bar { opacity: 0.7; }
+
+    table.analytics-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.analytics-table th, table.analytics-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    table.analytics-table th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    #rangeSelect { background: var(--surface); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+    <h1>Analytics</h1>
+    <select id="rangeSelect">
+      <option value="7">Last 7 days</option>
+      <option value="30" selected>Last 30 days</option>
+      <option value="90">Last 90 days</option>
+    </select>
+  </div>
+
+  <div class="stat-cards">
+    <div class="stat-card"><div class="val" id="statVisitors">—</div><div class="lbl">Unique Visitors / day (avg)</div></div>
+    <div class="stat-card"><div class="val" id="statPosters">—</div><div class="lbl">Unique Posters</div></div>
+    <div class="stat-card"><div class="val" id="statWallet">—</div><div class="lbl">Wallet vs Anon Posts</div></div>
+    <div class="stat-card"><div class="val" id="statPosts">—</div><div class="lbl">Total Posts</div></div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-card">
+      <h3>Unique visitors per day</h3>
+      <div class="bars" id="visitorBars"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Posts per day</h3>
+      <div class="bars" id="postBars"></div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>Popular boards</h3>
+    <table class="analytics-table">
+      <thead><tr><th>Board</th><th>Posts</th><th>Unique visitors</th></tr></thead>
+      <tbody id="boardsBody"><tr><td colspan="3">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/analytics');
+
+  function renderBars(containerId, points, color) {
+    const el = document.getElementById(containerId);
+    const max = Math.max(1, ...points.map(p => p.count));
+    el.innerHTML = points.map(p => `
+      <div class="bar-col" title="${esc(p.date)}: ${p.count}">
+        <div class="bar" style="height:${Math.max(2, Math.round((p.count / max) * 130))}px;background:${color}"></div>
+      </div>
+    `).join('');
+  }
+
+  async function load() {
+    const days = document.getElementById('rangeSelect').value;
+    const data = await api('GET', `/admin/api/analytics?days=${days}`);
+
+    const avgVisitors = data.visitorsByDay.length
+      ? Math.round(data.visitorsByDay.reduce((s, v) => s + v.count, 0) / data.visitorsByDay.length)
+      : 0;
+
+    document.getElementById('statVisitors').textContent = avgVisitors;
+    document.getElementById('statPosters').textContent  = data.uniquePosters;
+    document.getElementById('statWallet').textContent   = `${data.walletPosts} / ${data.anonPosts}`;
+    document.getElementById('statPosts').textContent     = data.totalPosts;
+
+    renderBars('visitorBars', data.visitorsByDay, '#4a90d9');
+    renderBars('postBars',    data.postsByDay,    '#22c55e');
+
+    const tbody = document.getElementById('boardsBody');
+    tbody.innerHTML = data.popularBoards.length
+      ? data.popularBoards.map(b => `
+          <tr>
+            <td>/${esc(b.boardUri)}/</td>
+            <td>${b.posts}</td>
+            <td>${b.visits}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="3">No data yet.</td></tr>';
+  }
+
+  document.getElementById('rangeSelect').addEventListener('change', () => load().catch(e => toast(e.message, true)));
+  load().catch(e => toast(e.message, true));
+</script>
+</body>
+</html>

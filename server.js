@@ -23,8 +23,9 @@ const morgan     = require('morgan');
 const { Server } = require('socket.io');
 
 const { attachSession } = require('./middleware/auth');
-const Thread = require('./models/Thread');
-const Board  = require('./models/Board');
+const Thread    = require('./models/Thread');
+const Board     = require('./models/Board');
+const analytics = require('./services/analytics');
 
 const app    = express();
 const server = http.createServer(app);
@@ -303,6 +304,8 @@ function escAttr(s) {
 }
 
 app.get('*', async (req, res) => {
+  analytics.recordVisit(req, 'site');
+
   const base = `${req.protocol}://${req.get('host')}`;
   let og = '';
 

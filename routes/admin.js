@@ -16,6 +16,7 @@ const Banner        = require('../models/Banner');
 const Announcement  = require('../models/Announcement');
 const Advertiser    = require('../models/Advertiser');
 const CountryFlair  = require('../models/CountryFlair');
+const Visit         = require('../models/Visit');
 const multer     = require('multer');
 const markup     = require('../services/markup');
 const { requireAdmin, issueToken } = require('../middleware/auth');
@@ -106,6 +107,7 @@ router.get('/announcements',   view('announcements'));
 router.get('/ads',             view('ads'));
 router.get('/country-flairs',  view('country-flairs'));
 router.get('/polipass',        view('polipass'));
+router.get('/analytics',       view('analytics'));
 
 // ── Country Flairs ────────────────────────────────────────────────────────────
 
@@ -152,6 +154,74 @@ router.delete('/api/country-flairs/:id', requireAdmin, async (req, res) => {
     await CountryFlair.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+// All visitor-derived numbers come from Visit (date + HMAC-hashed IP + scope,
+// see services/analytics.js) -- no raw IPs, no third-party trackers. Poster
+// numbers come straight from Post (ip is the same hash scheme, authorId is set
+// only when posting while logged into a wallet account).
+
+router.get('/api/analytics', async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 90);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const sinceDate = since.toISOString().slice(0, 10);
+
+    const [
+      visitorsByDay,
+      postsByDay,
+      uniquePosterHashes,
+      walletPosts,
+      totalPosts,
+      boardViews,
+      boardPosts
+    ] = await Promise.all([
+      Visit.aggregate([
+        { $match: { scope: 'site', date: { $gte: sinceDate } } },
+        { $group: { _id: '$date', count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]),
+      Post.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]),
+      Post.distinct('ip', { createdAt: { $gte: since } }),
+      Post.countDocuments({ createdAt: { $gte: since }, authorId: { $ne: null } }),
+      Post.countDocuments({ createdAt: { $gte: since } }),
+      Visit.aggregate([
+        { $match: { scope: { $ne: 'site' }, date: { $gte: sinceDate } } },
+        { $group: { _id: '$scope', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Post.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: '$boardUri', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ])
+    ]);
+
+    const viewsByBoard = Object.fromEntries(boardViews.map(b => [b._id, b.count]));
+    const postsByBoard = boardPosts.map(b => ({
+      boardUri: b._id,
+      posts:    b.count,
+      visits:   viewsByBoard[b._id] || 0
+    }));
+
+    res.json({
+      days,
+      visitorsByDay: visitorsByDay.map(v => ({ date: v._id, count: v.count })),
+      postsByDay:    postsByDay.map(p => ({ date: p._id, count: p.count })),
+      uniquePosters: uniquePosterHashes.length,
+      walletPosts,
+      anonPosts: totalPosts - walletPosts,
+      totalPosts,
+      popularBoards: postsByBoard
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Boards ────────────────────────────────────────────────────────────────────

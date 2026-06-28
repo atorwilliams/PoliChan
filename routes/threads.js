@@ -10,6 +10,7 @@ const sourceTag = require('../services/sourceTag');
 const ipHash    = require('../services/ipHash');
 const media     = require('../services/media');
 const counter   = require('../services/counter');
+const analytics = require('../services/analytics');
 const upload    = require('../middleware/upload');
 const captcha   = require('../middleware/captcha');
 const { floodCheck } = require('../middleware/rateLimit');
@@ -28,6 +29,9 @@ router.get('/:boardUri', async (req, res) => {
     if (!isAdmin && (board.minTier || 0) > tier) {
       return res.status(403).json({ error: 'A higher-tier PoliPass is required to access this board' });
     }
+
+    analytics.recordVisit(req, 'site');
+    analytics.recordVisit(req, req.params.boardUri);
 
     const threads = await Thread.find({ boardUri: req.params.boardUri, isArchived: false })
       .sort({ isPinned: -1, bumpedAt: -1 })
