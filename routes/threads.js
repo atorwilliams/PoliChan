@@ -237,8 +237,8 @@ async function pruneBoard(board) {
     await Thread.updateOne({ _id: oldest._id }, { isArchived: true });
   } else {
     await Thread.deleteOne({ _id: oldest._id });
-    await Board.updateOne({ uri: board.uri }, { $inc: { threadCount: -1 } });
   }
+  await Board.updateOne({ uri: board.uri }, { $inc: { threadCount: -1 } });
 }
 
 module.exports = router;
