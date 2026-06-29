@@ -96,6 +96,13 @@ router.get('/:boardUri/archive', async (req, res) => {
 // GET /api/threads/:boardUri/:threadId — single thread with posts
 router.get('/:boardUri/:threadId', async (req, res) => {
   try {
+    const board = await Board.findOne({ uri: req.params.boardUri }).select('minTier').lean();
+    const tier    = req.session?.poliPassTier || 0;
+    const isAdmin = req.session?.isAdmin || false;
+    if (board && !isAdmin && (board.minTier || 0) > tier) {
+      return res.status(403).json({ error: 'A higher-tier PoliPass is required to access this board' });
+    }
+
     const thread = await Thread.findOne({
       boardUri: req.params.boardUri,
       threadId: parseInt(req.params.threadId)
@@ -126,6 +133,7 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
     const { subject, body, name: rawName } = req.body;
     const name = rawName?.trim().slice(0, 50) || '';
     if (!body?.trim()) return res.status(400).json({ error: 'Body is required' });
+    if (body.length > 5000) return res.status(400).json({ error: 'Body must be 5000 characters or fewer' });
     if (!req.file) return res.status(400).json({ error: 'An image or file is required to start a thread' });
 
     // Process upload if present

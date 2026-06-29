@@ -20,6 +20,13 @@ const config         = require('../config');
 // GET /api/posts/:boardUri/:threadId — all posts in a thread
 router.get('/:boardUri/:threadId', async (req, res) => {
   try {
+    const board = await Board.findOne({ uri: req.params.boardUri }).select('minTier').lean();
+    const tier    = req.session?.poliPassTier || 0;
+    const isAdmin = req.session?.isAdmin || false;
+    if (board && !isAdmin && (board.minTier || 0) > tier) {
+      return res.status(403).json({ error: 'A higher-tier PoliPass is required to access this board' });
+    }
+
     const posts = await Post.find({
       boardUri: req.params.boardUri,
       threadId: parseInt(req.params.threadId)
@@ -44,6 +51,15 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
     if (thread.isLocked) return res.status(403).json({ error: 'Thread is locked' });
 
+    // Tier-gate check
+    {
+      const tier    = req.session?.poliPassTier || 0;
+      const isAdmin = req.session?.isAdmin || false;
+      if (board && !isAdmin && (board.minTier || 0) > tier) {
+        return res.status(403).json({ error: 'A higher-tier PoliPass is required to access this board' });
+      }
+    }
+
     // Region lock check
     if (board?.allowedCountries?.length > 0) {
       const rawIpCheck = req.ip || req.connection.remoteAddress;
@@ -56,6 +72,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
     const { body, name: rawName } = req.body;
     const name = rawName?.trim().slice(0, 50) || '';
     if (!body?.trim()) return res.status(400).json({ error: 'Body is required' });
+    if (body.length > 5000) return res.status(400).json({ error: 'Body must be 5000 characters or fewer' });
 
     // Process upload if present
     let mediaDoc = null;
