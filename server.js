@@ -118,6 +118,7 @@ app.get('/sitemap.xml', async (req, res) => {
       `${base}/about`,
       `${base}/faq`,
       `${base}/constitution`,
+      `${base}/press`,
       ...boards.map(b => `${base}/${b.uri}/`)
     ];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
@@ -171,6 +172,24 @@ app.get('/api/announcements/:boardUri', async (req, res) => {
       $or: [{ boardUri: req.params.boardUri }, { boardUri: null }]
     }).sort({ createdAt: -1 }).lean();
     res.json({ announcements: items.map(a => ({ _id: a._id, text: a.text, boardUri: a.boardUri })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public press releases API
+app.get('/api/press', async (_req, res) => {
+  try {
+    const PressRelease = require('./models/PressRelease');
+    const items = await PressRelease.find({ isPublished: true })
+      .sort({ createdAt: -1 }).lean();
+    res.json({ releases: items.map(p => ({
+      _id: p._id, title: p.title, body: p.body, createdAt: p.createdAt,
+      media: (p.media || []).map(m => ({
+        url: `/uploads/press/${m.storedName}`,
+        width: m.width, height: m.height
+      }))
+    })) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -288,6 +307,7 @@ app.post('/api/ads/:advertiserId/:adId/click', async (req, res) => {
 app.get('/pass',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'pass.html')));
 app.get('/badges',       (_req, res) => res.sendFile(path.join(__dirname, 'views', 'badges.html')));
 app.get('/wall',         (_req, res) => res.sendFile(path.join(__dirname, 'views', 'wall.html')));
+app.get('/press',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'press.html')));
 app.get('/constitution', (_req, res) => res.sendFile(path.join(__dirname, 'views', 'constitution.html')));
 app.get('/about',        (_req, res) => res.sendFile(path.join(__dirname, 'views', 'about.html')));
 app.get('/faq',          (_req, res) => res.sendFile(path.join(__dirname, 'views', 'faq.html')));

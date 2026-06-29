@@ -208,6 +208,7 @@ function renderNav(activePath) {
       <a href="/pass" ${activePath === '/pass' ? 'class="active"' : ''}>PoliPass</a>
       <a href="/badges" ${activePath === '/badges' ? 'class="active"' : ''}>Badges</a>
       <a href="/wall" ${activePath === '/wall' ? 'class="active"' : ''}>Wall</a>
+      <a href="/press" ${activePath === '/press' ? 'class="active"' : ''}>Press</a>
       <a href="/constitution" ${activePath === '/constitution' ? 'class="active"' : ''}>Constitution</a>
       ${watchedLink}`;
 
@@ -418,6 +419,7 @@ async function loadIndex() {
           <a href="/pass">PoliPass</a>
           <a href="/badges">Badges</a>
           <a href="/wall">Wall</a>
+          <a href="/press">Press</a>
           <a href="/constitution">Constitution</a>
         </div>
         <div class="index-footer-links">
@@ -1039,7 +1041,7 @@ function threadForm(boardUri) {
           </tr>
           <tr>
             <td class="lbl">Comment</td>
-            <td><textarea id="nt-body" rows="5"></textarea></td>
+            <td><textarea id="nt-body" rows="5" maxlength="5000"></textarea></td>
           </tr>
           <tr>
             <td class="lbl">File</td>
@@ -1326,7 +1328,7 @@ function replyFormHtml(boardUri, threadId) {
               </tr>
               <tr>
                 <td class="lbl">Comment</td>
-                <td><textarea id="rp-body" rows="5"></textarea></td>
+                <td><textarea id="rp-body" rows="5" maxlength="5000"></textarea></td>
               </tr>
               <tr>
                 <td class="lbl">File</td>
@@ -1400,7 +1402,7 @@ function setupQuickReply(boardUri, threadId) {
           </tr>
           <tr>
             <td class="lbl">Comment</td>
-            <td><textarea id="qr-body" rows="4" style="width:100%;min-width:180px"></textarea></td>
+            <td><textarea id="qr-body" rows="4" style="width:100%;min-width:180px" maxlength="5000"></textarea></td>
           </tr>
           ${captchaRowHtml('qr-captcha')}
           ${state.session?.authenticated && state.session?.tripcode ? `<tr>

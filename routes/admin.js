@@ -14,11 +14,13 @@ const WordFilter = require('../models/WordFilter');
 const SiteConfig    = require('../models/SiteConfig');
 const Banner        = require('../models/Banner');
 const Announcement  = require('../models/Announcement');
+const PressRelease  = require('../models/PressRelease');
 const Advertiser    = require('../models/Advertiser');
 const CountryFlair  = require('../models/CountryFlair');
 const Visit         = require('../models/Visit');
 const multer     = require('multer');
 const markup     = require('../services/markup');
+const media      = require('../services/media');
 const { requireAdmin, issueToken } = require('../middleware/auth');
 const config   = require('../config');
 
@@ -104,6 +106,7 @@ router.get('/danger',          view('danger'));
 router.get('/constitution',    view('constitution'));
 router.get('/banners',         view('banners'));
 router.get('/announcements',   view('announcements'));
+router.get('/press',           view('press'));
 router.get('/ads',             view('ads'));
 router.get('/country-flairs',  view('country-flairs'));
 router.get('/polipass',        view('polipass'));
@@ -857,6 +860,74 @@ router.patch('/api/announcements/:id', requireAdmin, async (req, res) => {
 router.delete('/api/announcements/:id', requireAdmin, async (req, res) => {
   try {
     await Announcement.deleteOne({ _id: req.params.id });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Press Releases ────────────────────────────────────────────────────────────
+
+router.get('/api/press', requireAdmin, async (req, res) => {
+  try {
+    const releases = await PressRelease.find().sort({ createdAt: -1 }).lean();
+    res.json({ releases });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const pressUpload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 8 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    const ok = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.mimetype);
+    cb(ok ? null : new Error('Images only'), ok);
+  }
+}).array('images', 6);
+
+router.post('/api/press', requireAdmin, (req, res) => {
+  pressUpload(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    try {
+      const { title, body } = req.body;
+      if (!title?.trim() || !body?.trim()) {
+        return res.status(400).json({ error: 'Title and body are required' });
+      }
+
+      const mediaDocs = [];
+      for (const file of req.files || []) {
+        mediaDocs.push(await media.processUpload(file, 'press'));
+      }
+
+      const p = await PressRelease.create({ title: title.trim(), body: body.trim(), media: mediaDocs });
+      res.json({ release: p });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
+router.patch('/api/press/:id', requireAdmin, async (req, res) => {
+  try {
+    const { isPublished } = req.body;
+    await PressRelease.updateOne({ _id: req.params.id }, { isPublished });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/press/:id', requireAdmin, async (req, res) => {
+  try {
+    const p = await PressRelease.findByIdAndDelete(req.params.id).lean();
+    if (p) {
+      const dir = path.join(__dirname, '../public/uploads/press');
+      for (const m of p.media || []) {
+        try { fs.unlinkSync(path.join(dir, m.storedName)); } catch (_) {}
+        try { fs.unlinkSync(path.join(dir, m.thumbName)); } catch (_) {}
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

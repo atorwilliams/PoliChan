@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Press — Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Press</h1>
+  </div>
+
+  <!-- Create form -->
+  <div class="panel">
+    <div class="panel-header">New Press Release</div>
+    <div class="panel-body">
+      <div class="form-grid">
+        <div class="field span-2">
+          <label>Title</label>
+          <input type="text" id="p-title" placeholder="Statement on…" style="width:100%">
+        </div>
+        <div class="field span-2">
+          <label>Body</label>
+          <textarea id="p-body" rows="8" style="width:100%;font-family:inherit" placeholder="Full statement text…"></textarea>
+        </div>
+        <div class="field span-2">
+          <label>Images <span style="color:var(--muted);font-weight:400;text-transform:none">(optional, up to 6)</span></label>
+          <input type="file" id="p-images" accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="create()">Publish</button>
+        <span id="p-error" style="color:var(--red);font-size:0.82rem"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div class="panel">
+    <div class="panel-header">All Releases <span id="p-count" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="p-list"><div class="empty">Loading…</div></div>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/press');
+
+  let releases = [];
+
+  async function load() {
+    const { releases: items } = await api('GET', '/admin/api/press');
+    releases = items;
+    document.getElementById('p-count').textContent = `(${items.length})`;
+    render();
+  }
+
+  function render() {
+    const el = document.getElementById('p-list');
+    if (!releases.length) { el.innerHTML = '<div class="empty">No press releases.</div>'; return; }
+
+    el.innerHTML = `<table><thead><tr>
+      <th>Title</th><th>Date</th><th>Published</th><th></th>
+    </tr></thead><tbody>` +
+    releases.map(p => `<tr>
+      <td>${esc(p.title)}</td>
+      <td style="color:var(--muted);font-size:0.8rem">${new Date(p.createdAt).toLocaleDateString()}</td>
+      <td>
+        <input type="checkbox" ${p.isPublished ? 'checked' : ''} onchange="toggle('${p._id}', this.checked)">
+      </td>
+      <td style="text-align:right">
+        <button class="btn btn-danger btn-sm" onclick="del('${p._id}')">Delete</button>
+      </td>
+    </tr>`).join('') + '</tbody></table>';
+  }
+
+  async function create() {
+    const title  = document.getElementById('p-title').value.trim();
+    const body   = document.getElementById('p-body').value.trim();
+    const images = document.getElementById('p-images').files;
+    const errEl  = document.getElementById('p-error');
+    if (!title || !body) { errEl.textContent = 'Title and body are required'; return; }
+    errEl.textContent = '';
+
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('body', body);
+    for (const file of images) fd.append('images', file);
+
+    try {
+      const res = await fetch('/admin/api/press', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { errEl.textContent = data.error || 'Failed to publish'; return; }
+      document.getElementById('p-title').value  = '';
+      document.getElementById('p-body').value   = '';
+      document.getElementById('p-images').value = '';
+      toast('Press release published');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function toggle(id, isPublished) {
+    try {
+      await api('PATCH', `/admin/api/press/${id}`, { isPublished });
+    } catch (e) { toast(e.message, true); load(); }
+  }
+
+  async function del(id) {
+    if (!confirm('Delete this press release?')) return;
+    try {
+      await api('DELETE', `/admin/api/press/${id}`);
+      toast('Deleted');
+      load();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  load();
+</script>
+</body>
+</html>

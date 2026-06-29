@@ -16,6 +16,7 @@ function adminNav(active) {
     { href: '/admin/wordfilter',  label: 'Word Filter' },
     { href: '/admin/verified',        label: 'Verified'        },
     { href: '/admin/announcements',   label: 'Announcements'   },
+    { href: '/admin/press',           label: 'Press'           },
     { href: '/admin/banners',         label: 'Banners'         },
     { href: '/admin/ads',             label: 'Ads'             },
     { href: '/admin/country-flairs',  label: 'Country Flairs'  },
