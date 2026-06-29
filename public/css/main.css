@@ -71,6 +71,13 @@ a:hover { color: var(--quotelink); }
   color: #fff;
   text-decoration: none;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+#nav .brand-logo {
+  height: 28px;
+  display: block;
 }
 
 #nav .brand span { color: #ffaaaa; }

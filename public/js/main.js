@@ -213,7 +213,7 @@ function renderNav(activePath) {
       ${watchedLink}`;
 
   nav.innerHTML = `
-    <a class="brand" href="/" data-nav>Poli<span>Chan</span></a>
+    <a class="brand" href="/" data-nav><img src="/.static/images/logo.png" alt="PoliChan" class="brand-logo"></a>
     <div class="nav-links" id="nav-links">
       ${navLinks}
     </div>
