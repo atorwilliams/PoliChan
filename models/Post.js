@@ -6,7 +6,7 @@ const postSchema = new mongoose.Schema({
   boardUri:   { type: String, required: true, index: true },
   threadId:   { type: Number, required: true },
   postId:     { type: Number, required: true },  // global sequential counter per board
-  body:       { type: String, required: true },
+  body:       { type: String, required: true, maxlength: 5000 },
   bodyHtml:   { type: String },                  // processed markup, cached
   name:       { type: String, default: '' },
   authorId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },

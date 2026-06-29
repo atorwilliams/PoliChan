@@ -152,6 +152,14 @@ async function processWebm(file, boardUri) {
     throw new Error(`File too large (max ${config.uploads.maxVideoMb} MB for video)`);
   }
 
+  // Probe before writing anything to disk — ffprobe has to actually decode
+  // the container, so this rejects non-video files mislabeled as video/webm
+  // instead of silently storing whatever bytes were uploaded.
+  const { width, height } = await probeVideo(file.buffer);
+  if (!width || !height) {
+    throw new Error('Invalid or corrupt video file');
+  }
+
   const dir        = boardDir(boardUri);
   const storedName = uniqueName('webm');
   const thumbName  = 's_' + storedName.replace('.webm', '.jpg');
@@ -159,11 +167,6 @@ async function processWebm(file, boardUri) {
   const thumbPath  = path.join(dir, thumbName);
 
   fs.writeFileSync(storedPath, file.buffer);
-
-  let width = 0, height = 0;
-  try {
-    ({ width, height } = await probeVideo(file.buffer));
-  } catch (_) {}
 
   try {
     await extractFrame(storedPath, thumbPath);

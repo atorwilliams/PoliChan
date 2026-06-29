@@ -28,7 +28,7 @@ const threadSchema = new mongoose.Schema({
   boardUri:    { type: String, required: true, index: true },
   threadId:    { type: Number, required: true },  // sequential per board
   subject:     { type: String, default: '' },
-  body:        { type: String, required: true },
+  body:        { type: String, required: true, maxlength: 5000 },
   bodyHtml:    { type: String },                  // processed markup, cached
   name:        { type: String, default: '' },
   authorId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
