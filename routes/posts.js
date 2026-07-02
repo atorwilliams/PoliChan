@@ -16,6 +16,7 @@ const { floodCheck } = require('../middleware/rateLimit');
 const geoip          = require('../services/geoip');
 const CountryFlair   = require('../models/CountryFlair');
 const config         = require('../config');
+const removal        = require('../services/removal');
 
 // GET /api/posts/find/:id — resolve a global post/thread ID to its board+thread
 // MUST be defined before /:boardUri/:threadId to avoid being shadowed
@@ -53,7 +54,12 @@ router.get('/:boardUri/:threadId', async (req, res) => {
       threadId: parseInt(req.params.threadId)
     }).sort({ postId: 1 }).lean();
 
-    res.json({ posts });
+    // Staff see removed posts in full; everyone else gets a stub that keeps
+    // the post's place in the thread but explains why the content is gone.
+    const isStaff = removal.isStaffSession(req.session);
+    const visible = isStaff ? posts : posts.map(p => p.isRemoved ? removal.stubPost(p) : p);
+
+    res.json({ posts: visible });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -223,7 +229,7 @@ router.post('/:boardUri/:threadId/report', async (req, res) => {
   try {
     const { boardUri, threadId: threadIdStr } = req.params;
     const { postId, reason } = req.body;
-    if (!['spam', 'illegal'].includes(reason)) {
+    if (!['spam', 'illegal', 'offtopic'].includes(reason)) {
       return res.status(400).json({ error: 'Invalid reason' });
     }
     const Report = require('../models/Report');

@@ -270,6 +270,10 @@ async function loadSession() {
   }
 }
 
+// Guards against spam-clicking Connect: each click would queue another
+// MetaMask prompt and each completed flow re-issues the session cookie.
+let _walletConnecting = false;
+
 async function handleWalletClick() {
   if (state.session?.authenticated) {
     await api.post('/auth/logout', {});
@@ -289,6 +293,8 @@ async function handleWalletClick() {
     return;
   }
 
+  if (_walletConnecting) return;
+  _walletConnecting = true;
   try {
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     const address  = accounts[0];
@@ -302,6 +308,8 @@ async function handleWalletClick() {
     renderNav(location.pathname);
   } catch (e) {
     toast('Wallet connection failed: ' + e.message, true);
+  } finally {
+    _walletConnecting = false;
   }
 }
 
@@ -906,7 +914,8 @@ function catalogCard(t, boardUri) {
   const badges = [
     t.isPinned   ? '<span class="badge-pinned">📌 Pinned</span>'     : '',
     t.isLocked   ? '<span class="badge-locked">🔒 Locked</span>'    : '',
-    t.bumpLimit  ? '<span class="badge-bump-limit">Bump limit</span>' : ''
+    t.bumpLimit  ? '<span class="badge-bump-limit">Bump limit</span>' : '',
+    t.removedReason ? `<span class="badge-removed" title="${esc(t.removedReason)}">Removed by staff</span>` : ''
   ].filter(Boolean).join(' ');
 
   // Strip HTML tags from bodyHtml for plain-text truncation so word filter
@@ -1149,6 +1158,11 @@ async function loadThread(boardUri, threadId) {
         <span>#${thread.threadId}</span>
         <span id="watch-btn" style="margin-left:auto;font-size:0.8rem">[<a href="#" onclick="toggleWatch('${boardUri}',${threadId},'${esc((thread.subject||'#'+thread.threadId).replace(/'/g,"\\'"))}',${posts.length});return false" id="watch-link">${_watched[`${boardUri}:${threadId}`] ? 'Unwatch' : 'Watch'}</a>]</span>
       </div>
+      ${thread.removedReason ? `
+        <div class="thread-removed-banner">
+          This thread was removed to the archive by moderators.
+          <span class="thread-removed-reason">Reason: ${esc(thread.removedReason)}</span>
+        </div>` : ''}
       <div class="thread-view">
         ${renderPost(thread, boardUri, true, backlinks)}
         ${posts.map((p, i) => {
@@ -1186,7 +1200,11 @@ async function loadThread(boardUri, threadId) {
 
     // Socket.io — live replies (single persistent connection, switch rooms on navigate)
     if (window.io) {
-      if (!_socket) _socket = io();
+      if (!_socket) {
+        _socket = io();
+        // Timed soft reset wipes all threads — refresh so the tab isn't stale
+        _socket.on('soft-reset', () => location.reload());
+      }
       if (_socketRoom) _socket.emit('leave-thread', _socketRoom);
       _socketRoom = { boardUri, threadId };
       _socket.emit('join-thread', { boardUri, threadId });
@@ -1217,6 +1235,22 @@ async function loadThread(boardUri, threadId) {
 
 function renderPost(post, boardUri, isOp, backlinks) {
   const id = post.postId || post.threadId;
+
+  // Public stub for a staff-removed post (server strips the body for
+  // non-staff). Keeps the post's slot and number so quotes still resolve.
+  if (post.isRemoved && !post.body) {
+    const stub = `
+      <div class="post reply post-removed" id="p${id}">
+        <div class="postInfo">
+          <span class="post-name">Anonymous</span>
+          <span class="post-date">${formatDate(post.createdAt)}</span>
+          <span class="post-no">No.${id}</span>
+        </div>
+        <blockquote class="postMessage post-removed-msg">Post removed by staff${post.removedReason ? `. Reason: ${esc(post.removedReason)}` : ''}</blockquote>
+      </div>`;
+    return isOp ? stub : `<div class="reply-container" id="rc-${id}">${stub}</div>`;
+  }
+
   const mediaHtml = post.media ? renderMedia(post.media, boardUri) : '';
 
   const tierLabels = { 1: 'Primary', 2: 'Press', 3: 'Commentary', 4: 'Social' };
@@ -1232,7 +1266,9 @@ function renderPost(post, boardUri, isOp, backlinks) {
   const badges = [
     isOp && post.isPinned   ? '<span class="badge-pinned">[Pinned]</span>'      : '',
     isOp && post.isLocked   ? '<span class="badge-locked">[Locked]</span>'      : '',
-    isOp && post.bumpLimit  ? '<span class="badge-bump-limit">[Bump Limit]</span>' : ''
+    isOp && post.bumpLimit  ? '<span class="badge-bump-limit">[Bump Limit]</span>' : '',
+    // Staff still see removed content in full; badge marks it as handled
+    post.isRemoved ? `<span class="badge-removed">[Removed${post.removedReason ? ': ' + esc(post.removedReason) : ''}]</span>` : ''
   ].filter(Boolean).join(' ');
 
   const myBacklinks = (backlinks || {})[post.postId || post.threadId] || [];
@@ -1798,18 +1834,62 @@ function expandMedia(img) {
 
 // ── Report ────────────────────────────────────────────────────────────────────
 
-async function reportPost(boardUri, threadId, postId) {
-  const reason = prompt('Report reason:\n1 = Spam\n2 = Illegal');
-  const map = { '1': 'spam', '2': 'illegal' };
-  if (!map[reason]) return;
-  try {
-    await api.post('/posts/' + boardUri + '/' + threadId + '/report', {
-      postId, reason: map[reason]
-    });
-    toast('Report submitted.');
-  } catch (e) {
-    toast('Failed: ' + e.message, true);
-  }
+const REPORT_REASONS = [
+  { value: 'spam',     label: 'Spam',            desc: 'Advertising, flooding, or bot content' },
+  { value: 'illegal',  label: 'Illegal content', desc: 'Content that violates the law' },
+  { value: 'offtopic', label: 'Off-topic',       desc: 'Does not belong on this board' }
+];
+
+function reportPost(boardUri, threadId, postId) {
+  document.getElementById('report-modal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'report-modal';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box" role="dialog" aria-label="Report post">
+      <div class="modal-title">Report ${postId ? 'post No.' + postId : 'thread'}</div>
+      <div class="modal-body">
+        ${REPORT_REASONS.map((r, i) => `
+          <label class="report-option">
+            <input type="radio" name="report-reason" value="${r.value}" ${i === 0 ? 'checked' : ''}>
+            <span class="report-option-text">
+              <span class="report-option-label">${r.label}</span>
+              <span class="report-option-desc">${r.desc}</span>
+            </span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn" id="report-cancel">Cancel</button>
+        <button type="button" class="modal-btn modal-btn-primary" id="report-submit">Submit Report</button>
+      </div>
+    </div>`;
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#report-cancel').addEventListener('click', close);
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  overlay.querySelector('#report-submit').addEventListener('click', async () => {
+    const reason = overlay.querySelector('input[name="report-reason"]:checked')?.value;
+    if (!reason) return;
+    const btn = overlay.querySelector('#report-submit');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    try {
+      await api.post('/posts/' + boardUri + '/' + threadId + '/report', { postId, reason });
+      close();
+      toast('Report submitted.');
+    } catch (e) {
+      close();
+      toast('Failed: ' + e.message, true);
+    }
+  });
+
+  document.body.appendChild(overlay);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

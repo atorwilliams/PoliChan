@@ -48,6 +48,7 @@ mongoose.connect(config.mongo.uri)
   .then(async () => {
     console.log(`MongoDB connected: ${config.mongo.uri}`);
     await require('./services/counter').sync();
+    require('./services/softReset').init(io);
   })
   .catch(err => { console.error('MongoDB connection error:', err); process.exit(1); });
 

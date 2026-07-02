@@ -18,6 +18,8 @@ function getProvider(chainId) {
 
 const POLITICIAN_SBT_ABI = ['function getValidLabel(address) view returns (string)'];
 
+// Throws on RPC/contract failure — the caller must distinguish "lookup
+// failed" from "wallet holds nothing" so a flaky RPC can't strip a flair.
 async function checkRule(rule, address) {
   if (rule.matchType === 'manual') {
     return rule.wallets.includes(address.toLowerCase());
@@ -29,39 +31,34 @@ async function checkRule(rule, address) {
     return tier >= 1 && tier <= 3 ? tier : false;
   }
 
-  try {
-    const provider = getProvider(rule.chainId);
+  const provider = getProvider(rule.chainId);
 
-    if (rule.matchType === 'politician_sbt') {
-      const contract = new ethers.Contract(rule.tokenAddress, POLITICIAN_SBT_ABI, provider);
-      const label = await contract.getValidLabel(address);
-      // Return the label string itself so the caller can use it directly
-      return label && label.trim() ? label.trim() : false;
-    }
+  if (rule.matchType === 'politician_sbt') {
+    const contract = new ethers.Contract(rule.tokenAddress, POLITICIAN_SBT_ABI, provider);
+    const label = await contract.getValidLabel(address);
+    // Return the label string itself so the caller can use it directly
+    return label && label.trim() ? label.trim() : false;
+  }
 
-    const min = BigInt(rule.minBalance || '1');
+  const min = BigInt(rule.minBalance || '1');
 
-    if (rule.matchType === 'polipass') {
-      const contract = new ethers.Contract(rule.tokenAddress, POLIPASS_ABI, provider);
-      const tier = await contract.getTier(address);
-      return Number(tier) >= Number(rule.minBalance || '1') ? Number(tier) : false;
-    }
+  if (rule.matchType === 'polipass') {
+    const contract = new ethers.Contract(rule.tokenAddress, POLIPASS_ABI, provider);
+    const tier = await contract.getTier(address);
+    return Number(tier) >= Number(rule.minBalance || '1') ? Number(tier) : false;
+  }
 
-    if (rule.matchType === 'erc20' || rule.matchType === 'erc721') {
-      const abi  = rule.matchType === 'erc20' ? ERC20_ABI : ERC721_ABI;
-      const contract = new ethers.Contract(rule.tokenAddress, abi, provider);
-      const bal = await contract.balanceOf(address);
-      return bal >= min;
-    }
+  if (rule.matchType === 'erc20' || rule.matchType === 'erc721') {
+    const abi  = rule.matchType === 'erc20' ? ERC20_ABI : ERC721_ABI;
+    const contract = new ethers.Contract(rule.tokenAddress, abi, provider);
+    const bal = await contract.balanceOf(address);
+    return bal >= min;
+  }
 
-    if (rule.matchType === 'erc1155') {
-      const contract = new ethers.Contract(rule.tokenAddress, ERC1155_ABI, provider);
-      const bal = await contract.balanceOf(address, BigInt(rule.tokenId || '0'));
-      return bal >= min;
-    }
-  } catch (e) {
-    console.error(`[flair] checkRule failed (${rule.matchType} / ${rule.name}):`, e.message);
-    return false;
+  if (rule.matchType === 'erc1155') {
+    const contract = new ethers.Contract(rule.tokenAddress, ERC1155_ABI, provider);
+    const bal = await contract.balanceOf(address, BigInt(rule.tokenId || '0'));
+    return bal >= min;
   }
 
   return false;
@@ -97,8 +94,17 @@ async function getFlairForWallet(address) {
     return (TYPE_RANK[b.matchType] ?? 0) - (TYPE_RANK[a.matchType] ?? 0);
   });
 
+  let rpcError = null;
+
   for (const rule of rules) {
-    const result = await checkRule(rule, address);
+    let result;
+    try {
+      result = await checkRule(rule, address);
+    } catch (e) {
+      console.error(`[flair] checkRule failed (${rule.matchType} / ${rule.name}):`, e.message);
+      rpcError = e;
+      continue;
+    }
     if (result) {
       return {
         label:        rule.matchType === 'politician_sbt' ? result : rule.label,
@@ -108,6 +114,10 @@ async function getFlairForWallet(address) {
       };
     }
   }
+
+  // No rule matched, but at least one check never completed — the result is
+  // unreliable, so refuse to answer rather than report "no flair".
+  if (rpcError) throw new Error(`flair lookup incomplete: ${rpcError.message}`);
 
   return null;
 }

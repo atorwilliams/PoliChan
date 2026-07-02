@@ -4,24 +4,46 @@
   <meta charset="UTF-8">
   <title>Reports — Polichan Admin</title>
   <link rel="stylesheet" href="/.static/css/admin.css">
+  <style>
+    .queues { display: grid; grid-template-columns: 1fr; gap: 20px; }
+
+    .report-row td { vertical-align: top; }
+    .report-excerpt {
+      color: var(--muted); font-size: 0.78rem; max-width: 420px;
+      overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .report-subject { color: #fff; font-size: 0.8rem; font-weight: 600; }
+    .report-count {
+      display: inline-block; background: #7f1d1d; color: #fff;
+      border-radius: 10px; font-size: 0.7rem; padding: 1px 7px; margin-left: 6px;
+    }
+    .report-gone { color: var(--muted); font-style: italic; font-size: 0.78rem; }
+    .report-handled { color: #22c55e; font-size: 0.78rem; }
+    .queue-empty { padding: 14px; color: var(--muted); font-size: 0.85rem; }
+    .actions-cell { display: flex; gap: 5px; flex-wrap: wrap; }
+  </style>
 </head>
 <body>
 <div id="admin-nav"></div>
 <main>
   <div class="page-header"><h1>Reports</h1></div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div class="queues">
+    <div class="panel">
+      <div class="panel-header"><span>🚨 Illegal Queue</span><span id="illegalCount" style="color:var(--muted)"></span></div>
+      <div id="illegalList"><div class="queue-empty">Loading…</div></div>
+    </div>
 
     <div class="panel">
       <div class="panel-header"><span>🗑 Spam Queue</span><span id="spamCount" style="color:var(--muted)"></span></div>
-      <div id="spamList"><div class="empty">Loading…</div></div>
+      <div id="spamList"><div class="queue-empty">Loading…</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-header"><span>🚨 Illegal Queue</span><span id="illegalCount" style="color:var(--muted)"></span></div>
-      <div id="illegalList"><div class="empty">Loading…</div></div>
+      <div class="panel-header"><span>🧭 Off-topic Queue</span><span id="offtopicCount" style="color:var(--muted)"></span></div>
+      <div id="offtopicList"><div class="queue-empty">Loading…</div></div>
     </div>
-
   </div>
 </main>
 
@@ -29,64 +51,114 @@
 <script>
   adminNav('/admin/reports');
 
+  const REASON_LABELS = { spam: 'Spam', illegal: 'Illegal content', offtopic: 'Off-topic' };
+
+  // Duplicate reports of the same target+reason are grouped into one row;
+  // actions on the row apply to every report in the group.
+  let _groups = {};
+
   async function load() {
     const { reports } = await api('GET', '/admin/api/reports');
 
-    const spam    = reports.filter(r => r.reason === 'spam');
-    const illegal = reports.filter(r => r.reason === 'illegal');
+    _groups = {};
+    for (const r of reports) {
+      const key = `${r.boardUri}:${r.threadId}:${r.postId || 'op'}:${r.reason}`;
+      if (!_groups[key]) _groups[key] = { ...r, ids: [] };
+      _groups[key].ids.push(r._id);
+    }
+    const groups = Object.entries(_groups).map(([key, g]) => ({ key, ...g }));
 
-    document.getElementById('spamCount').textContent    = `(${spam.length})`;
-    document.getElementById('illegalCount').textContent = `(${illegal.length})`;
-
-    renderQueue('spamList',    spam);
-    renderQueue('illegalList', illegal);
+    for (const reason of ['illegal', 'spam', 'offtopic']) {
+      const mine = groups.filter(g => g.reason === reason);
+      document.getElementById(reason + 'Count').textContent =
+        `(${mine.reduce((s, g) => s + g.ids.length, 0)})`;
+      renderQueue(reason + 'List', mine);
+    }
   }
 
-  function renderQueue(elId, reports) {
+  function renderQueue(elId, groups) {
     const el = document.getElementById(elId);
-    if (!reports.length) { el.innerHTML = '<div class="empty">No open reports</div>'; return; }
+    if (!groups.length) { el.innerHTML = '<div class="queue-empty">No open reports</div>'; return; }
 
-    el.innerHTML = '<table><thead><tr><th>Board</th><th>Thread</th><th>Post</th><th>Date</th><th>Actions</th></tr></thead><tbody>'
-      + reports.map(r => `<tr>
-          <td><span class="board-uri">/${esc(r.boardUri)}/</span></td>
-          <td><a href="/${esc(r.boardUri)}/${r.threadId}" target="_blank" style="color:var(--blue)">#${r.threadId}</a></td>
-          <td>${r.postId ? `No.${r.postId}` : '<span style="color:var(--muted)">OP</span>'}</td>
-          <td class="mono">${formatDate(r.createdAt)}</td>
-          <td style="display:flex;gap:5px;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="resolve('${r._id}')">Resolve</button>
-            ${r.postId
-              ? `<button class="btn btn-danger btn-sm" onclick="deletePost('${r._id}','${r.boardUri}',${r.postId})">Del Post</button>`
-              : `<button class="btn btn-danger btn-sm" onclick="deleteThread('${r._id}','${r.boardUri}',${r.threadId})">Del Thread</button>`
-            }
+    el.innerHTML = '<table><thead><tr><th>Target</th><th>Content</th><th>Reported</th><th>Actions</th></tr></thead><tbody>'
+      + groups.map(g => `<tr class="report-row">
+          <td>
+            <span class="board-uri">/${esc(g.boardUri)}/</span>
+            <a href="/${esc(g.boardUri)}/${g.threadId}${g.postId ? '#p' + g.postId : ''}" target="_blank" style="color:var(--blue)">
+              ${g.postId ? 'No.' + g.postId : 'Thread #' + g.threadId}
+            </a>
+            ${!g.postId ? '<span style="color:var(--muted);font-size:0.72rem"> (OP)</span>' : ''}
+            ${g.ids.length > 1 ? `<span class="report-count">×${g.ids.length}</span>` : ''}
+          </td>
+          <td>
+            ${!g.targetExists
+              ? '<span class="report-gone">Content no longer exists</span>'
+              : g.targetRemoved
+                ? '<span class="report-handled">Already removed by staff</span>'
+                : `${g.subject ? `<div class="report-subject">${esc(g.subject)}</div>` : ''}
+                   <div class="report-excerpt">${esc(g.excerpt || '(no text)')}</div>`}
+          </td>
+          <td class="mono">${formatDate(g.createdAt)}</td>
+          <td class="actions-cell">
+            ${g.targetExists && !g.targetRemoved ? `
+              <button class="btn btn-ghost btn-sm" onclick="removeTarget('${g.key}')">Remove</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteTarget('${g.key}')">Delete</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="dismiss('${g.key}')">Dismiss</button>
           </td>
         </tr>`).join('')
       + '</tbody></table>';
   }
 
-  async function resolve(reportId) {
+  async function resolveGroup(key) {
+    const g = _groups[key];
+    await Promise.all(g.ids.map(id => api('POST', `/admin/api/reports/${id}/resolve`)));
+  }
+
+  async function dismiss(key) {
     try {
-      await api('POST', `/admin/api/reports/${reportId}/resolve`);
-      toast('Report resolved');
+      await resolveGroup(key);
+      toast('Report dismissed');
       load();
     } catch (e) { toast(e.message, true); }
   }
 
-  async function deletePost(reportId, boardUri, postId) {
-    if (!confirm(`Delete post No.${postId}?`)) return;
+  // Soft removal: content is preserved and publicly replaced by/archived with
+  // the reason. This is the default action.
+  async function removeTarget(key) {
+    const g = _groups[key];
+    const reason = prompt(
+      g.postId
+        ? `Remove post No.${g.postId}? The post stays in the thread as a stub with this explanation:`
+        : `Remove thread #${g.threadId} to the archive? It will be locked and shown there with this explanation:`,
+      REASON_LABELS[g.reason]
+    );
+    if (reason === null || !reason.trim()) return;
     try {
-      await api('DELETE', `/admin/api/posts/${encodeURIComponent(boardUri)}/${postId}`);
-      await api('POST',   `/admin/api/reports/${reportId}/resolve`);
-      toast('Post deleted');
+      if (g.postId) {
+        await api('POST', `/admin/api/posts/${encodeURIComponent(g.boardUri)}/${g.postId}/remove`, { reason: reason.trim() });
+      } else {
+        await api('POST', `/admin/api/threads/${encodeURIComponent(g.boardUri)}/${g.threadId}/remove`, { reason: reason.trim() });
+      }
+      await resolveGroup(key);
+      toast(g.postId ? 'Post removed' : 'Thread removed to archive');
       load();
     } catch (e) { toast(e.message, true); }
   }
 
-  async function deleteThread(reportId, boardUri, threadId) {
-    if (!confirm(`Delete entire thread #${threadId} and all its replies?`)) return;
+  // Permanent deletion: for content that can't be kept at all. Files are
+  // deleted from disk and the content is unrecoverable.
+  async function deleteTarget(key) {
+    const g = _groups[key];
+    const what = g.postId ? `post No.${g.postId}` : `thread #${g.threadId} and all its replies`;
+    if (!confirm(`PERMANENTLY delete ${what}? Content and media files are destroyed. For most cases use Remove instead.`)) return;
     try {
-      await api('DELETE', `/admin/api/threads/${encodeURIComponent(boardUri)}/${threadId}`);
-      await api('POST',   `/admin/api/reports/${reportId}/resolve`);
-      toast('Thread deleted');
+      if (g.postId) {
+        await api('DELETE', `/admin/api/posts/${encodeURIComponent(g.boardUri)}/${g.postId}`);
+      } else {
+        await api('DELETE', `/admin/api/threads/${encodeURIComponent(g.boardUri)}/${g.threadId}`);
+      }
+      await resolveGroup(key);
+      toast('Deleted permanently');
       load();
     } catch (e) { toast(e.message, true); }
   }

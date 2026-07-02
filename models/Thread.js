@@ -43,6 +43,8 @@ const threadSchema = new mongoose.Schema({
   isPinned:    { type: Boolean, default: false },
   isLocked:    { type: Boolean, default: false },
   isArchived:  { type: Boolean, default: false },
+  // Set when staff removed the thread to the archive (vs aging out naturally)
+  removedReason: { type: String, default: null },
   replyCount:  { type: Number, default: 0 },
   bumpLimit:   { type: Boolean, default: false },
   lastReplyAt: { type: Date, default: null },

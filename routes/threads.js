@@ -17,6 +17,7 @@ const { floodCheck } = require('../middleware/rateLimit');
 const geoip        = require('../services/geoip');
 const CountryFlair = require('../models/CountryFlair');
 const config       = require('../config');
+const removal      = require('../services/removal');
 
 // GET /api/threads/:boardUri — thread list (catalog or index view)
 // ?preview=N  (1–5) attaches the last N replies as thread.lastPosts for index view
@@ -47,10 +48,11 @@ router.get('/:boardUri', async (req, res) => {
       }).sort({ postId: 1 }).lean();
 
       // Group by threadId, keep last N per thread
+      const isStaff = removal.isStaffSession(req.session);
       const byThread = {};
       for (const p of allPosts) {
         if (!byThread[p.threadId]) byThread[p.threadId] = [];
-        byThread[p.threadId].push(p);
+        byThread[p.threadId].push(p.isRemoved && !isStaff ? removal.stubPost(p) : p);
       }
       for (const t of threads) {
         t.lastPosts = (byThread[t.threadId] || []).slice(0, preview);

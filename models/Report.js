@@ -6,7 +6,7 @@ const reportSchema = new mongoose.Schema({
   boardUri:    { type: String, required: true },
   threadId:    { type: Number, required: true },
   postId:      { type: Number, default: null },  // null = report on the thread OP itself
-  reason:      { type: String, enum: ['spam', 'illegal'], required: true },
+  reason:      { type: String, enum: ['spam', 'illegal', 'offtopic'], required: true },
   reporterIp:  { type: String },                 // hashed
   resolved:    { type: Boolean, default: false },
   resolvedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null }

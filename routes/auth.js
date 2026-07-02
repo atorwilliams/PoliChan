@@ -34,9 +34,20 @@ router.post('/wallet', async (req, res) => {
       account = await Account.create({ walletAddress: normalizedAddress, tripcode: tc });
     }
 
-    // Resolve flair from on-chain rules (non-blocking — defaults to null on error)
+    // Resolve flair from on-chain rules. If the lookup fails (RPC outage or
+    // rate limiting) keep the previous session's flair for the same account
+    // instead of silently downgrading to tier 0.
     console.log('[auth] calling getFlairForWallet for', normalizedAddress);
-    const flairData = await flair.getFlairForWallet(normalizedAddress).catch((e) => { console.error('[auth] flair error:', e.message); return null; });
+    let flairData;
+    try {
+      flairData = await flair.getFlairForWallet(normalizedAddress);
+    } catch (e) {
+      console.error('[auth] flair error:', e.message);
+      const prev = req.session;
+      flairData = (prev && String(prev.accountId) === String(account._id))
+        ? { label: prev.flair, color: prev.flairColor, bgColor: prev.flairBgColor, poliPassTier: prev.poliPassTier || 0 }
+        : null;
+    }
 
     const payload = {
       accountId:    account._id,

@@ -248,4 +248,16 @@ async function processUpload(file, boardUri) {
   return processImage(file, boardUri);
 }
 
-module.exports = { processUpload, MAX_BYTES, MAX_VIDEO_BYTES, ALLOWED_MIME };
+/**
+ * Delete a media doc's files (full + thumb) from a board's upload dir.
+ * Missing files are fine — deletion must never fail a moderation action.
+ */
+function deleteFiles(boardUri, mediaDoc) {
+  if (!mediaDoc) return;
+  for (const fname of [mediaDoc.storedName, mediaDoc.thumbName]) {
+    if (!fname) continue;
+    try { fs.unlinkSync(path.join(UPLOADS_ROOT, boardUri, fname)); } catch (_) {}
+  }
+}
+
+module.exports = { processUpload, deleteFiles, MAX_BYTES, MAX_VIDEO_BYTES, ALLOWED_MIME };

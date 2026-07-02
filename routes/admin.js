@@ -170,59 +170,87 @@ router.delete('/api/country-flairs/:id', requireAdmin, async (req, res) => {
 router.get('/api/analytics', async (req, res) => {
   try {
     const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const sinceDate = since.toISOString().slice(0, 10);
 
+    // Full list of UTC calendar days in range (oldest first) — charts get a
+    // bucket for every day, including zero-activity days, so both charts
+    // share the same axis and averages divide by the real day count.
+    const dates = [];
+    for (let i = days - 1; i >= 0; i--) {
+      dates.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+    }
+    const sinceDate = dates[0];
+    const since = new Date(sinceDate + 'T00:00:00Z');
+
+    const byDayPipeline = [
+      { $match: { createdAt: { $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+    ];
+    const byBoardPipeline = [
+      { $match: { createdAt: { $gte: since } } },
+      { $group: { _id: '$boardUri', count: { $sum: 1 } } }
+    ];
+
+    // Content lives in two collections: Thread (OPs) + Post (replies).
+    // Every post metric must count both or OPs vanish from the stats.
     const [
-      visitorsByDay,
-      postsByDay,
+      visitorsByDayRaw,
+      postsByDayRaw, threadsByDayRaw,
       uniqueVisitorHashes,
-      uniquePosterHashes,
-      walletPosts,
-      totalPosts,
+      postPosterHashes, threadPosterHashes,
+      walletReplies, walletOps,
+      totalReplies, totalOps,
       boardViews,
-      boardPosts
+      boardPostsRaw, boardThreadsRaw
     ] = await Promise.all([
       Visit.aggregate([
         { $match: { scope: 'site', date: { $gte: sinceDate } } },
-        { $group: { _id: '$date', count: { $sum: 1 } } },
-        { $sort: { _id: 1 } }
+        { $group: { _id: '$date', count: { $sum: 1 } } }
       ]),
-      Post.aggregate([
-        { $match: { createdAt: { $gte: since } } },
-        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
-        { $sort: { _id: 1 } }
-      ]),
+      Post.aggregate(byDayPipeline),
+      Thread.aggregate(byDayPipeline),
       Visit.distinct('ipHash', { scope: 'site', date: { $gte: sinceDate } }),
       Post.distinct('ip', { createdAt: { $gte: since } }),
+      Thread.distinct('ip', { createdAt: { $gte: since } }),
       Post.countDocuments({ createdAt: { $gte: since }, authorId: { $ne: null } }),
+      Thread.countDocuments({ createdAt: { $gte: since }, authorId: { $ne: null } }),
       Post.countDocuments({ createdAt: { $gte: since } }),
+      Thread.countDocuments({ createdAt: { $gte: since } }),
       Visit.aggregate([
         { $match: { scope: { $ne: 'site' }, date: { $gte: sinceDate } } },
-        { $group: { _id: '$scope', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }
+        { $group: { _id: '$scope', count: { $sum: 1 } } }
       ]),
-      Post.aggregate([
-        { $match: { createdAt: { $gte: since } } },
-        { $group: { _id: '$boardUri', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }
-      ])
+      Post.aggregate(byBoardPipeline),
+      Thread.aggregate(byBoardPipeline)
     ]);
 
-    const viewsByBoard = Object.fromEntries(boardViews.map(b => [b._id, b.count]));
-    const postsByBoard = boardPosts.map(b => ({
-      boardUri: b._id,
-      posts:    b.count,
-      visits:   viewsByBoard[b._id] || 0
-    }));
+    const sumCounts = (...rowSets) => {
+      const m = {};
+      for (const rows of rowSets) {
+        for (const r of rows) m[r._id] = (m[r._id] || 0) + r.count;
+      }
+      return m;
+    };
+
+    const visitorMap = sumCounts(visitorsByDayRaw);
+    const postDayMap = sumCounts(postsByDayRaw, threadsByDayRaw);
+
+    // Union of boards seen in posts, threads, or visits — a board with
+    // traffic but no posts yet still belongs in the table.
+    const contentByBoard = sumCounts(boardPostsRaw, boardThreadsRaw);
+    const viewsByBoard   = sumCounts(boardViews);
+    const postsByBoard = [...new Set([...Object.keys(contentByBoard), ...Object.keys(viewsByBoard)])]
+      .map(uri => ({ boardUri: uri, posts: contentByBoard[uri] || 0, visits: viewsByBoard[uri] || 0 }))
+      .sort((a, b) => (b.posts - a.posts) || (b.visits - a.visits));
 
     const uniqueVisitors = uniqueVisitorHashes.length;
-    const uniquePosters  = uniquePosterHashes.length;
+    const uniquePosters  = new Set([...postPosterHashes, ...threadPosterHashes]).size;
+    const walletPosts    = walletReplies + walletOps;
+    const totalPosts     = totalReplies + totalOps;
 
     res.json({
       days,
-      visitorsByDay: visitorsByDay.map(v => ({ date: v._id, count: v.count })),
-      postsByDay:    postsByDay.map(p => ({ date: p._id, count: p.count })),
+      visitorsByDay: dates.map(d => ({ date: d, count: visitorMap[d] || 0 })),
+      postsByDay:    dates.map(d => ({ date: d, count: postDayMap[d] || 0 })),
       uniqueVisitors,
       uniquePosters,
       // Visitors hashed via Visit who never appear as a poster's IP hash --
@@ -367,9 +395,39 @@ router.delete('/api/categories/:slug', requireAdmin, async (req, res) => {
 
 // ── Reports ───────────────────────────────────────────────────────────────────
 
+// Open reports enriched with an excerpt of the reported content so mods can
+// triage without opening every thread, plus whether the target still exists.
 router.get('/api/reports', async (req, res) => {
-  const reports = await Report.find({ resolved: false }).sort({ createdAt: -1 }).lean();
-  res.json({ reports });
+  try {
+    const reports = await Report.find({ resolved: false }).sort({ createdAt: -1 }).lean();
+
+    const postIds   = [...new Set(reports.filter(r => r.postId).map(r => r.postId))];
+    const threadIds = [...new Set(reports.map(r => r.threadId))];
+
+    const [posts, threads] = await Promise.all([
+      postIds.length
+        ? Post.find({ postId: { $in: postIds } }).select('postId body isRemoved').lean()
+        : [],
+      Thread.find({ threadId: { $in: threadIds } }).select('threadId subject body isArchived removedReason').lean()
+    ]);
+    const postMap   = Object.fromEntries(posts.map(p => [p.postId, p]));
+    const threadMap = Object.fromEntries(threads.map(t => [t.threadId, t]));
+
+    const enriched = reports.map(r => {
+      const target = r.postId ? postMap[r.postId] : threadMap[r.threadId];
+      return {
+        ...r,
+        targetExists: !!target,
+        targetRemoved: !!(target && (target.isRemoved || target.removedReason)),
+        subject: (!r.postId && target?.subject) || '',
+        excerpt: target ? (target.body || '').slice(0, 160) : ''
+      };
+    });
+
+    res.json({ reports: enriched });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/api/reports/:id/resolve', async (req, res) => {
@@ -381,17 +439,63 @@ router.post('/api/reports/:id/resolve', async (req, res) => {
   }
 });
 
-// ── Content deletion ──────────────────────────────────────────────────────────
+// ── Content removal (soft) ────────────────────────────────────────────────────
+// The default moderation action: content is never destroyed. A removed post
+// stays in its thread as a stub with the reason; a removed thread is locked
+// and moved to the board's public archive with the reason attached.
+
+router.post('/api/posts/:boardUri/:postId/remove', async (req, res) => {
+  try {
+    const reason = (req.body.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'A removal reason is required' });
+
+    const result = await Post.updateOne(
+      { boardUri: req.params.boardUri, postId: parseInt(req.params.postId) },
+      { $set: { isRemoved: true, removedReason: reason.slice(0, 200) } }
+    );
+    if (result.matchedCount === 0) return res.status(404).json({ error: 'Post not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/threads/:boardUri/:threadId/remove', async (req, res) => {
+  try {
+    const reason = (req.body.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'A removal reason is required' });
+
+    const boardUri = req.params.boardUri;
+    const threadId = parseInt(req.params.threadId);
+    const thread = await Thread.findOne({ boardUri, threadId });
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const wasLive = !thread.isArchived;
+    await Thread.updateOne({ boardUri, threadId }, {
+      $set: { isArchived: true, isLocked: true, removedReason: reason.slice(0, 200) }
+    });
+    // Archived threads don't count against the live-thread cap (matches pruneBoard)
+    if (wasLive) await Board.updateOne({ uri: boardUri }, { $inc: { threadCount: -1 } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Content deletion (permanent) ──────────────────────────────────────────────
+// For content that can't be kept at all (illegal material). Also removes the
+// media files from disk, which the old implementation leaked.
 
 router.delete('/api/posts/:boardUri/:postId', async (req, res) => {
   try {
-    const result = await Post.deleteOne({
-      boardUri: req.params.boardUri,
-      postId:   parseInt(req.params.postId)
-    });
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
+    const boardUri = req.params.boardUri;
+    const post = await Post.findOne({ boardUri, postId: parseInt(req.params.postId) }).lean();
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    media.deleteFiles(boardUri, post.media);
+    await Post.deleteOne({ _id: post._id });
+    await Thread.updateOne({ boardUri, threadId: post.threadId }, { $inc: { replyCount: -1 } });
+    await Board.updateOne({ uri: boardUri }, { $inc: { postCount: -1 } });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -402,12 +506,18 @@ router.delete('/api/threads/:boardUri/:threadId', async (req, res) => {
   try {
     const boardUri  = req.params.boardUri;
     const threadId  = parseInt(req.params.threadId);
-    const t = await Thread.deleteOne({ boardUri, threadId });
-    if (t.deletedCount === 0) {
-      return res.status(404).json({ error: 'Thread not found' });
-    }
+    const thread = await Thread.findOne({ boardUri, threadId }).lean();
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const posts = await Post.find({ boardUri, threadId }).select('media').lean();
+    media.deleteFiles(boardUri, thread.media);
+    for (const p of posts) media.deleteFiles(boardUri, p.media);
+
+    await Thread.deleteOne({ _id: thread._id });
     await Post.deleteMany({ boardUri, threadId });
-    await Board.updateOne({ uri: boardUri }, { $inc: { threadCount: -1 } });
+    await Board.updateOne({ uri: boardUri }, {
+      $inc: { threadCount: thread.isArchived ? 0 : -1, postCount: -posts.length }
+    });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -874,6 +984,56 @@ router.post('/api/wipe', async (req, res) => {
     fs.mkdirSync(uploadsDir, { recursive: true });
 
     console.warn(`[WIPE] Forum wiped by admin at ${new Date().toISOString()}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Timed soft reset ──────────────────────────────────────────────────────────
+// Deletes all threads/posts/reports and board media at a scheduled time.
+// Boards, accounts, bans, categories, ads, banners, press, and wall survive.
+
+const softReset = require('../services/softReset');
+
+router.get('/api/soft-reset', requireAdmin, async (req, res) => {
+  try {
+    res.json({ scheduledAt: await softReset.getScheduledAt() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/soft-reset', requireAdmin, async (req, res) => {
+  try {
+    const { scheduledAt } = req.body;
+    const ts = new Date(scheduledAt).getTime();
+    if (!scheduledAt || isNaN(ts)) return res.status(400).json({ error: 'A valid date is required' });
+    if (ts <= Date.now())          return res.status(400).json({ error: 'Scheduled time must be in the future' });
+    await softReset.schedule(new Date(ts).toISOString());
+    console.warn(`[SOFT-RESET] Scheduled for ${new Date(ts).toISOString()} by admin`);
+    res.json({ ok: true, scheduledAt: new Date(ts).toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/soft-reset', requireAdmin, async (req, res) => {
+  try {
+    await softReset.cancel();
+    console.warn('[SOFT-RESET] Schedule cancelled by admin');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/soft-reset/run', requireAdmin, async (req, res) => {
+  try {
+    if (req.body.confirm !== 'RESET') {
+      return res.status(400).json({ error: 'Type RESET in the confirmation box' });
+    }
+    await softReset.run(req.io);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -53,4 +53,16 @@ async function sync() {
   }
 }
 
-module.exports = { nextId, sync };
+/**
+ * Reset the counter to zero so post numbering restarts at 1.
+ * Only safe when all threads and posts have been deleted (soft reset).
+ */
+async function reset() {
+  await Counter.findOneAndUpdate(
+    { _id: 'global' },
+    { $set: { seq: 0 } },
+    { upsert: true }
+  );
+}
+
+module.exports = { nextId, sync, reset };

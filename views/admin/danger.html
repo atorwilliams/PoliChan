@@ -41,6 +41,34 @@
     #wipe-error { color: #ef4444; font-size: 0.82rem; margin-bottom: 12px; min-height: 1.2em; }
     .btn-danger { background: #7f1d1d; border: 1px solid #ef4444; color: #fff; }
     .btn-danger:hover { background: #991b1b; }
+
+    .reset-box {
+      border: 1px solid #f59e0b;
+      border-radius: var(--r);
+      padding: 28px;
+      background: #1a1206;
+      max-width: 560px;
+      margin-bottom: 28px;
+    }
+    .reset-box h2 { color: #f59e0b; margin: 0 0 8px; }
+    .reset-box p  { color: var(--muted); margin: 0 0 20px; font-size: 0.85rem; line-height: 1.5; }
+    .reset-box label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .reset-box input[type=datetime-local], .reset-box input[type=text] {
+      width: 100%; box-sizing: border-box;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; color: #fff; font-size: 0.88rem;
+      padding: 8px 10px; margin-bottom: 14px;
+      color-scheme: dark;
+    }
+    .reset-status {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; padding: 10px 14px;
+      font-size: 0.85rem; color: var(--muted); margin-bottom: 20px;
+    }
+    .reset-status.armed { border-color: #f59e0b; color: #f59e0b; }
+    #reset-error { color: #ef4444; font-size: 0.82rem; margin-bottom: 12px; min-height: 1.2em; }
+    .btn-warn { background: #78350f; border: 1px solid #f59e0b; color: #fff; }
+    .btn-warn:hover { background: #92400e; }
   </style>
 </head>
 <body>
@@ -48,6 +76,27 @@
 <main>
   <div class="page-header">
     <h1 style="color:#ef4444">Danger Zone</h1>
+  </div>
+
+  <div class="reset-box">
+    <h2>Timed Soft Reset</h2>
+    <p>Deletes every thread, post, report, and uploaded board media file at the scheduled time, restarting the site from post No.1. Boards, categories, accounts, bans, ads, banners, press releases, and the wall are untouched.</p>
+
+    <div class="reset-status" id="reset-status">Loading...</div>
+
+    <label>Reset at</label>
+    <input type="datetime-local" id="reset-when">
+
+    <div id="reset-error"></div>
+
+    <div style="display:flex;gap:8px;margin-bottom:24px">
+      <button class="btn btn-warn"  id="scheduleResetBtn">Schedule Reset</button>
+      <button class="btn btn-ghost" id="cancelResetBtn" style="display:none">Cancel Schedule</button>
+    </div>
+
+    <label>Or run immediately: type RESET</label>
+    <input type="text" id="reset-confirm" placeholder="RESET" autocomplete="off">
+    <button class="btn btn-warn" id="runResetBtn">Run Soft Reset Now</button>
   </div>
 
   <div class="danger-box">
@@ -98,6 +147,104 @@
 <script src="/.static/js/admin-common.js"></script>
 <script>
   adminNav('/admin/danger');
+
+  // ── Timed soft reset ────────────────────────────────────────────────────────
+
+  let _resetAt = null;
+  let _countdownTimer = null;
+
+  function fmtCountdown(ms) {
+    if (ms <= 0) return 'any second now';
+    const s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+          m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const parts = [];
+    if (d) parts.push(d + 'd');
+    if (h || d) parts.push(h + 'h');
+    parts.push(m + 'm', sec + 's');
+    return 'in ' + parts.join(' ');
+  }
+
+  function renderResetStatus() {
+    const el = document.getElementById('reset-status');
+    clearInterval(_countdownTimer);
+    if (!_resetAt) {
+      el.textContent = 'No reset scheduled.';
+      el.classList.remove('armed');
+      document.getElementById('cancelResetBtn').style.display = 'none';
+      return;
+    }
+    el.classList.add('armed');
+    document.getElementById('cancelResetBtn').style.display = '';
+    const when = new Date(_resetAt);
+    const tick = () => {
+      el.textContent = `Armed: resets ${when.toLocaleString()} (${fmtCountdown(when - Date.now())})`;
+    };
+    tick();
+    _countdownTimer = setInterval(tick, 1000);
+  }
+
+  async function loadResetStatus() {
+    try {
+      const res = await api('GET', '/admin/api/soft-reset');
+      _resetAt = res.scheduledAt;
+    } catch (e) {
+      _resetAt = null;
+    }
+    renderResetStatus();
+  }
+
+  document.getElementById('scheduleResetBtn').addEventListener('click', async () => {
+    const errEl = document.getElementById('reset-error');
+    errEl.textContent = '';
+    const val = document.getElementById('reset-when').value;
+    if (!val) { errEl.textContent = 'Pick a date and time.'; return; }
+    const when = new Date(val);
+    if (isNaN(when) || when <= Date.now()) { errEl.textContent = 'Time must be in the future.'; return; }
+    if (!confirm(`Schedule a full soft reset for ${when.toLocaleString()}? All threads and posts will be deleted at that time.`)) return;
+    try {
+      const res = await api('POST', '/admin/api/soft-reset', { scheduledAt: when.toISOString() });
+      _resetAt = res.scheduledAt;
+      renderResetStatus();
+      toast('Soft reset scheduled.');
+    } catch (e) { errEl.textContent = e.message; }
+  });
+
+  document.getElementById('cancelResetBtn').addEventListener('click', async () => {
+    try {
+      await api('DELETE', '/admin/api/soft-reset');
+      _resetAt = null;
+      renderResetStatus();
+      toast('Schedule cancelled.');
+    } catch (e) { toast(e.message, true); }
+  });
+
+  document.getElementById('runResetBtn').addEventListener('click', async () => {
+    const errEl = document.getElementById('reset-error');
+    errEl.textContent = '';
+    const confirmVal = document.getElementById('reset-confirm').value.trim();
+    if (confirmVal !== 'RESET') { errEl.textContent = 'Type RESET in the confirmation box.'; return; }
+    if (!confirm('Run the soft reset right now? All threads and posts will be deleted immediately.')) return;
+    const btn = document.getElementById('runResetBtn');
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Resetting...';
+      await api('POST', '/admin/api/soft-reset/run', { confirm: 'RESET' });
+      document.getElementById('reset-confirm').value = '';
+      _resetAt = null;
+      renderResetStatus();
+      toast('Soft reset complete. The site is back at post No.1.');
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run Soft Reset Now';
+    }
+  });
+
+  loadResetStatus();
+
+  // ── Nuclear wipe ────────────────────────────────────────────────────────────
 
   let _wipeChallenge = null;
 

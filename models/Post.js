@@ -28,6 +28,10 @@ const postSchema = new mongoose.Schema({
     tier:   Number
   },
   quotes:     [Number],     // postIds this reply quotes (>>123)
+  // Soft removal: content stays in the DB for the record, but the public API
+  // serves a stub with the reason instead of the body/media.
+  isRemoved:     { type: Boolean, default: false },
+  removedReason: { type: String, default: null },
   isModPost:  { type: Boolean, default: false },
   ip:         { type: String }  // HMAC-SHA256 hashed
 }, { timestamps: true });

@@ -84,9 +84,11 @@
   function renderBars(containerId, points, color) {
     const el = document.getElementById(containerId);
     const max = Math.max(1, ...points.map(p => p.count));
+    // Long ranges (90/365 days) can't afford per-bar gaps without overflowing
+    el.style.gap = points.length > 60 ? '0px' : '2px';
     el.innerHTML = points.map(p => `
       <div class="bar-col" title="${esc(p.date)}: ${p.count}">
-        <div class="bar" style="height:${Math.max(2, Math.round((p.count / max) * 130))}px;background:${color}"></div>
+        <div class="bar" style="height:${p.count ? Math.max(2, Math.round((p.count / max) * 130)) : 0}px;min-height:0;background:${color}"></div>
       </div>
     `).join('');
   }
