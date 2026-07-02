@@ -22,6 +22,22 @@
     .report-handled { color: #22c55e; font-size: 0.78rem; }
     .queue-empty { padding: 14px; color: var(--muted); font-size: 0.85rem; }
     .actions-cell { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .move-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .move-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 22px; width: min(360px, calc(100vw - 32px));
+    }
+    .move-box h3 { color: #fff; font-size: 0.95rem; margin: 0 0 14px; }
+    .move-box select {
+      width: 100%; box-sizing: border-box; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 4px; color: #fff;
+      padding: 8px 10px; font-size: 0.85rem; margin-bottom: 16px;
+    }
+    .move-box .row { display: flex; justify-content: flex-end; gap: 8px; }
   </style>
 </head>
 <body>
@@ -56,9 +72,14 @@
   // Duplicate reports of the same target+reason are grouped into one row;
   // actions on the row apply to every report in the group.
   let _groups = {};
+  let _boards = [];
 
   async function load() {
-    const { reports } = await api('GET', '/admin/api/reports');
+    const [{ reports }, { boards }] = await Promise.all([
+      api('GET', '/admin/api/reports'),
+      api('GET', '/admin/api/boards')
+    ]);
+    _boards = boards;
 
     _groups = {};
     for (const r of reports) {
@@ -101,6 +122,7 @@
           <td class="mono">${formatDate(g.createdAt)}</td>
           <td class="actions-cell">
             ${g.targetExists && !g.targetRemoved ? `
+              ${!g.postId ? `<button class="btn btn-ghost btn-sm" onclick="moveTarget('${g.key}')">Move</button>` : ''}
               <button class="btn btn-ghost btn-sm" onclick="removeTarget('${g.key}')">Remove</button>
               <button class="btn btn-danger btn-sm" onclick="deleteTarget('${g.key}')">Delete</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="dismiss('${g.key}')">Dismiss</button>
@@ -120,6 +142,51 @@
       toast('Report dismissed');
       load();
     } catch (e) { toast(e.message, true); }
+  }
+
+  // Move a reported thread (with all replies and media) to another board.
+  // The natural resolution for off-topic reports. Resolves the report group.
+  function moveTarget(key) {
+    const g = _groups[key];
+    const options = _boards
+      .filter(b => b.uri !== g.boardUri)
+      .sort((a, b) => a.uri.localeCompare(b.uri))
+      .map(b => `<option value="${esc(b.uri)}">/${esc(b.uri)}/ - ${esc(b.name)}</option>`)
+      .join('');
+    if (!options) { toast('No other boards to move to', true); return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'move-overlay';
+    overlay.innerHTML = `
+      <div class="move-box">
+        <h3>Move thread #${g.threadId} from /${esc(g.boardUri)}/ to:</h3>
+        <select id="move-target">${options}</select>
+        <div class="row">
+          <button class="btn btn-ghost btn-sm" id="move-cancel">Cancel</button>
+          <button class="btn btn-sm" id="move-ok" style="background:#1d4ed8;border:1px solid #3b82f6;color:#fff">Move Thread</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#move-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#move-ok').addEventListener('click', async () => {
+      const targetBoardUri = overlay.querySelector('#move-target').value;
+      const btn = overlay.querySelector('#move-ok');
+      btn.disabled = true;
+      btn.textContent = 'Moving...';
+      try {
+        await api('POST', '/api/mod/move/thread', {
+          boardUri: g.boardUri, threadId: g.threadId, targetBoardUri
+        });
+        await resolveGroup(key);
+        overlay.remove();
+        toast(`Thread moved to /${targetBoardUri}/`);
+        load();
+      } catch (e) {
+        overlay.remove();
+        toast(e.message, true);
+      }
+    });
+    document.body.appendChild(overlay);
   }
 
   // Soft removal: content is preserved and publicly replaced by/archived with

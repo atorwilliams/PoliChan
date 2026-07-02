@@ -133,6 +133,12 @@ router.post('/move/thread', async (req, res) => {
     await Board.updateOne({ uri: boardUri },       { $inc: { threadCount: -1, postCount: -replyCount } });
     await Board.updateOne({ uri: targetBoardUri }, { $inc: { threadCount:  1, postCount:  replyCount } });
 
+    // Keep open reports pointing at the thread's new home
+    await Report.updateMany(
+      { boardUri, threadId: parseInt(threadId), resolved: false },
+      { boardUri: targetBoardUri }
+    );
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
