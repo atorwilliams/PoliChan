@@ -251,6 +251,7 @@ router.post('/api/boards', async (req, res) => {
     const { uri, name, description, parentUri, maxThreads, archiveThreshold } = req.body;
     if (!uri || !name) return res.status(400).json({ error: 'uri and name required' });
     if (!/^[a-z0-9-]+$/.test(uri)) return res.status(400).json({ error: 'Invalid URI — use lowercase letters, numbers, hyphens only' });
+    if (parentUri && parentUri === uri) return res.status(400).json({ error: 'A board cannot be its own parent' });
 
     const board = await Board.create({
       uri, name,
@@ -279,7 +280,12 @@ router.patch('/api/boards/:uri', async (req, res) => {
     if (rules !== undefined)       update.rules = rules;
     if (isListed !== undefined)    update.isListed = isListed;
     if (minTier !== undefined)     update.minTier = minTier;
-    if (parentUri !== undefined)    update.parentUri    = parentUri    || null;
+    if (parentUri !== undefined) {
+      if (parentUri && parentUri === req.params.uri) {
+        return res.status(400).json({ error: 'A board cannot be its own parent' });
+      }
+      update.parentUri = parentUri || null;
+    }
     if (req.body.categorySlug !== undefined) update.categorySlug = req.body.categorySlug || null;
     if (maxThreads !== undefined)  update['settings.maxThreads'] = maxThreads;
     if (archiveThreshold !== undefined) update['settings.archiveThreshold'] = archiveThreshold;

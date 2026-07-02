@@ -215,14 +215,15 @@
 
     function renderChildren(parentUri, depth) {
       let out = '';
-      for (const b of boards.filter(b => b.parentUri === parentUri)) {
+      for (const b of boards.filter(b => b.parentUri === parentUri && b.uri !== parentUri)) {
         out += row(b, depth);
         out += renderChildren(b.uri, depth + 1);
       }
       return out;
     }
 
-    for (const b of boards.filter(b => !b.parentUri || !boards.find(p => p.uri === b.parentUri))) {
+    // Top-level: no parent, self-parent (bad data — show rather than hide), or orphaned parent
+    for (const b of boards.filter(b => !b.parentUri || b.parentUri === b.uri || !boards.find(p => p.uri === b.parentUri))) {
       html += row(b, 0);
       html += renderChildren(b.uri, 1);
     }

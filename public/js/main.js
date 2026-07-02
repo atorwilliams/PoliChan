@@ -13,7 +13,7 @@ const state = {
   currentBoard:     null,
   currentThread:    null,
   boardThreads:     null,
-  boardView:        localStorage.getItem('boardView') || 'catalog',
+  boardView:        localStorage.getItem('boardView') || 'index',
   turnstileSiteKey: null
 };
 
