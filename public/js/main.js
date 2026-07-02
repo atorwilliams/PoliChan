@@ -537,7 +537,26 @@ async function loadAds(uri) {
   }
 
   const sidebarSlot = document.getElementById('sp-side');
-  if (sidebarSlot) sidebarSlot.style.display = 'none';
+  if (sidebarSlot && !isMember) {
+    try {
+      const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
+      if (ad) {
+        const link = document.getElementById('sp-side-link');
+        document.getElementById('sp-side-img').src = ad.imageUrl;
+        link.dataset.adv  = ad.advertiserId;
+        link.dataset.adid = ad.adId;
+        link.dataset.url  = ad.clickUrl;
+        link.onclick      = (e) => handleAdClick(e, link);
+        sidebarSlot.classList.add('has-ad');
+        // Only count the impression if the sidebar is actually visible
+        // (media query hides it below 1100px even with .has-ad set).
+        // getComputedStyle, not offsetParent: the latter is null when fixed.
+        if (getComputedStyle(sidebarSlot).display !== 'none') {
+          fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+        }
+      }
+    } catch (_) {}
+  }
 }
 
 async function loadThreadMidAd(uri) {
@@ -774,12 +793,12 @@ async function loadBoard(uri) {
         <img src="" alt="banner" style="width:468px;height:60px;object-fit:contain;max-width:100%">
       </div>
 
-      <div style="display:flex;gap:20px;align-items:flex-start">
+      <div style="display:flex;gap:20px;align-items:flex-start;position:relative">
         <div id="board-content" style="flex:1;min-width:0"></div>
-        <div id="sp-side" style="display:none;flex-direction:column;align-items:center;gap:6px;width:160px;flex-shrink:0;position:sticky;top:80px">
-          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);opacity:0.6">Sponsored</div>
+        <div id="sp-side">
+          <div class="sp-side-label">Sponsored</div>
           <a id="sp-side-link" href="#" target="_blank" rel="noopener noreferrer">
-            <img id="sp-side-img" src="" alt="ad" style="width:100%;max-height:500px;object-fit:contain;display:block">
+            <img id="sp-side-img" src="" alt="ad">
           </a>
         </div>
       </div>
