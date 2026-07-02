@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Categories — Polichan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+
+  <div class="page-header">
+    <h1>Categories</h1>
+    <button class="btn btn-primary" onclick="showCreateForm()">+ New Category</button>
+  </div>
+
+  <!-- Create / Edit form -->
+  <div class="panel" id="formPanel" style="display:none">
+    <div class="panel-header">
+      <span id="formTitle">Create Category</span>
+      <button class="btn btn-ghost btn-sm" onclick="hideForm()">Cancel</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="field">
+          <label>Name <span style="color:var(--muted);font-weight:400;text-transform:none">(display label, e.g. Canada)</span></label>
+          <input type="text" id="f-name" placeholder="Canada">
+        </div>
+        <div class="field">
+          <label>Slug <span style="color:var(--muted);font-weight:400;text-transform:none">(unique key, e.g. canada — lowercase, hyphens only)</span></label>
+          <input type="text" id="f-slug" placeholder="canada" pattern="[a-z0-9-]+">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="f-type">
+            <option value="general">General</option>
+            <option value="country">Country</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Display Order <span style="color:var(--muted);font-weight:400;text-transform:none">(lower = first; same order sorts alphabetically)</span></label>
+          <input type="number" id="f-order" value="0" min="0">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="submitForm()">Save</button>
+        <span class="error-msg" id="formError"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category list -->
+  <div class="panel">
+    <div class="panel-header">All Categories <span id="catCount" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="catList"><div class="empty">Loading…</div></div>
+  </div>
+
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/categories');
+
+  let categories = [];
+  let editingSlug = null;
+
+  async function load() {
+    const data = await api('GET', '/admin/api/categories');
+    categories = data.categories;
+    document.getElementById('catCount').textContent = `(${categories.length})`;
+    renderList();
+  }
+
+  function renderList() {
+    const el = document.getElementById('catList');
+    if (!categories.length) {
+      el.innerHTML = '<div class="empty">No categories yet.</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Name</th><th>Slug</th><th>Type</th><th>Order</th><th></th></tr></thead><tbody>';
+    for (const c of categories) {
+      html += `<tr>
+        <td>${esc(c.name)}</td>
+        <td style="color:var(--muted)">${esc(c.slug)}</td>
+        <td>${c.type === 'country' ? 'Country' : 'General'}</td>
+        <td>${c.order}</td>
+        <td style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="editCat('${c.slug}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCat('${c.slug}')">Delete</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function showCreateForm() {
+    editingSlug = null;
+    document.getElementById('formTitle').textContent = 'Create Category';
+    document.getElementById('f-name').value  = '';
+    document.getElementById('f-slug').value  = '';
+    document.getElementById('f-type').value  = 'general';
+    document.getElementById('f-order').value = '0';
+    document.getElementById('f-slug').disabled = false;
+    document.getElementById('formError').textContent = '';
+    const p = document.getElementById('formPanel');
+    p.style.display = 'block';
+    p.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function editCat(slug) {
+    const c = categories.find(c => c.slug === slug);
+    if (!c) return;
+    editingSlug = slug;
+    document.getElementById('formTitle').textContent = `Edit "${c.name}"`;
+    document.getElementById('f-name').value  = c.name;
+    document.getElementById('f-slug').value  = c.slug;
+    document.getElementById('f-slug').disabled = true;
+    document.getElementById('f-type').value  = c.type || 'general';
+    document.getElementById('f-order').value = String(c.order ?? 0);
+    document.getElementById('formError').textContent = '';
+    const p = document.getElementById('formPanel');
+    p.style.display = 'block';
+    p.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function hideForm() {
+    document.getElementById('formPanel').style.display = 'none';
+    editingSlug = null;
+  }
+
+  async function submitForm() {
+    const errEl = document.getElementById('formError');
+    errEl.textContent = '';
+    const body = {
+      name:  document.getElementById('f-name').value.trim(),
+      slug:  document.getElementById('f-slug').value.trim().toLowerCase(),
+      type:  document.getElementById('f-type').value,
+      order: parseInt(document.getElementById('f-order').value) || 0
+    };
+    if (!body.name) { errEl.textContent = 'Name is required'; return; }
+    try {
+      if (editingSlug) {
+        await api('PATCH', `/admin/api/categories/${editingSlug}`, body);
+        toast('Category updated');
+      } else {
+        if (!body.slug) { errEl.textContent = 'Slug is required'; return; }
+        await api('POST', '/admin/api/categories', body);
+        toast('Category created');
+      }
+      hideForm();
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  }
+
+  async function deleteCat(slug) {
+    if (!confirm(`Delete category "${slug}"? Boards assigned to it will become uncategorized.`)) return;
+    try {
+      await api('DELETE', `/admin/api/categories/${slug}`);
+      toast('Category deleted');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

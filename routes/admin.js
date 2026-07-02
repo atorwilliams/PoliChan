@@ -17,6 +17,7 @@ const Announcement  = require('../models/Announcement');
 const PressRelease  = require('../models/PressRelease');
 const Advertiser    = require('../models/Advertiser');
 const CountryFlair  = require('../models/CountryFlair');
+const Category      = require('../models/Category');
 const Visit         = require('../models/Visit');
 const multer     = require('multer');
 const markup     = require('../services/markup');
@@ -108,6 +109,7 @@ router.get('/banners',         view('banners'));
 router.get('/announcements',   view('announcements'));
 router.get('/press',           view('press'));
 router.get('/ads',             view('ads'));
+router.get('/categories',      view('categories'));
 router.get('/country-flairs',  view('country-flairs'));
 router.get('/polipass',        view('polipass'));
 router.get('/analytics',       view('analytics'));
@@ -252,11 +254,12 @@ router.post('/api/boards', async (req, res) => {
 
     const board = await Board.create({
       uri, name,
-      description:  req.body.description || '',
-      parentUri:    req.body.parentUri || null,
-      rules:        req.body.rules || '',
+      description:  req.body.description  || '',
+      categorySlug: req.body.categorySlug || null,
+      parentUri:    req.body.parentUri    || null,
+      rules:        req.body.rules        || '',
       settings: {
-        maxThreads:       req.body.maxThreads || 150,
+        maxThreads:       req.body.maxThreads       || 150,
         archiveThreshold: req.body.archiveThreshold || 10
       }
     });
@@ -276,7 +279,8 @@ router.patch('/api/boards/:uri', async (req, res) => {
     if (rules !== undefined)       update.rules = rules;
     if (isListed !== undefined)    update.isListed = isListed;
     if (minTier !== undefined)     update.minTier = minTier;
-    if (parentUri !== undefined)   update.parentUri = parentUri || null;
+    if (parentUri !== undefined)    update.parentUri    = parentUri    || null;
+    if (req.body.categorySlug !== undefined) update.categorySlug = req.body.categorySlug || null;
     if (maxThreads !== undefined)  update['settings.maxThreads'] = maxThreads;
     if (archiveThreshold !== undefined) update['settings.archiveThreshold'] = archiveThreshold;
     if (allowedCountries !== undefined) {
@@ -291,7 +295,7 @@ router.patch('/api/boards/:uri', async (req, res) => {
 
     // Re-derive country/region from current URI (updateOne bypasses pre-save hooks)
     const parts = req.params.uri.split('-');
-    update.country = parts[0] || '';
+    update.country = parts.length > 1 ? parts[0] : '';
     update.region  = parts[1] || '';
 
     await Board.updateOne({ uri: req.params.uri }, update);
@@ -304,6 +308,51 @@ router.patch('/api/boards/:uri', async (req, res) => {
 router.delete('/api/boards/:uri', async (req, res) => {
   try {
     await Board.deleteOne({ uri: req.params.uri });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
+router.get('/api/categories', requireAdmin, async (req, res) => {
+  try {
+    const categories = await Category.find().sort({ order: 1, name: 1 }).lean();
+    res.json({ categories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/categories', requireAdmin, async (req, res) => {
+  try {
+    const { name, slug, type, order } = req.body;
+    if (!name || !slug) return res.status(400).json({ error: 'name and slug required' });
+    const cat = await Category.create({ name, slug, type: type || 'general', order: parseInt(order) || 0 });
+    res.status(201).json({ category: cat });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/categories/:slug', requireAdmin, async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.name  !== undefined) update.name  = req.body.name;
+    if (req.body.type  !== undefined) update.type  = req.body.type;
+    if (req.body.order !== undefined) update.order = parseInt(req.body.order) || 0;
+    await Category.updateOne({ slug: req.params.slug }, update);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/categories/:slug', requireAdmin, async (req, res) => {
+  try {
+    await Category.deleteOne({ slug: req.params.slug });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

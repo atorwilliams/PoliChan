@@ -6,7 +6,8 @@ function adminNav(active) {
   const links = [
     { href: '/admin',          label: 'Dashboard' },
     { href: '/admin/analytics', label: 'Analytics' },
-    { href: '/admin/boards',   label: 'Boards'    },
+    { href: '/admin/boards',      label: 'Boards'     },
+    { href: '/admin/categories',  label: 'Categories' },
     { href: '/admin/reports',  label: 'Reports'   },
     { href: '/admin/bans',     label: 'Bans'      },
     { href: '/admin/accounts', label: 'Accounts'  },

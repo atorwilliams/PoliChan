@@ -415,6 +415,25 @@ table.post-form input[type="button"]:hover,
 
 .thread-view { margin-top: 6px; }
 
+.thread-mid-ad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 20px auto;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  width: fit-content;
+}
+.thread-mid-ad-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
 /* OP post */
 .post.op {
   background: var(--op-bg);
@@ -476,6 +495,69 @@ table.post-form input[type="button"]:hover,
   cursor: pointer;
 }
 .post-inline-link:hover { color: var(--quotelink); text-decoration: underline; }
+
+.post-backlinks {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0px 5px;
+  font-size: 0.75rem;
+  color: var(--quotelink);
+  border: 1px solid var(--quotelink);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.75;
+  vertical-align: middle;
+}
+.post-backlinks:hover { opacity: 1; }
+.post-backlinks:empty { display: none; }
+
+#reply-picker {
+  display: none;
+  position: fixed;
+  z-index: 9100;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  border-radius: 3px;
+  min-width: 90px;
+  overflow: hidden;
+}
+#reply-picker a {
+  display: block;
+  padding: 5px 12px;
+  color: var(--quotelink);
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+#reply-picker a:hover { background: rgba(128,128,128,0.12); }
+
+#post-preview-popup {
+  display: none;
+  position: fixed;
+  z-index: 9000;
+  max-width: 480px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  padding: 6px 10px;
+  pointer-events: none;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+#post-preview-popup .post {
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+#post-preview-popup .post-footer,
+#post-preview-popup .mod-controls,
+#post-preview-popup .post-hidden-bar,
+#post-preview-popup .post-backlinks { display: none !important; }
+#post-preview-popup .post-file img { max-height: 80px; width: auto; }
+#post-preview-popup .postMessage { margin-top: 4px; font-size: 0.82rem; max-height: 200px; overflow: hidden; }
 
 .post-flair {
   background: rgba(200,146,42,0.12);

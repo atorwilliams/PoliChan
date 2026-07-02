@@ -8,6 +8,7 @@ const boardSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   country:     { type: String, default: '' },  // 'ca', 'us' — first segment of uri
   region:      { type: String, default: '' },  // 'ab', 'pei' — second segment
+  categorySlug: { type: String, default: null }, // category this board belongs to (top-level boards only)
   parentUri:   { type: String, default: null }, // null = top-level
   polimapKey:  { type: String, default: null }, // links to PoliMap region key
   threadCount: { type: Number, default: 0 },
@@ -30,7 +31,7 @@ const boardSchema = new mongoose.Schema({
 // Derive country/region from uri on save
 boardSchema.pre('save', function (next) {
   const parts = this.uri.split('-');
-  this.country = parts[0] || '';
+  this.country = parts.length > 1 ? parts[0] : '';
   this.region  = parts[1] || '';
   next();
 });

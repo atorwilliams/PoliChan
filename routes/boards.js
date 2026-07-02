@@ -1,37 +1,64 @@
 'use strict';
 
-const express = require('express');
-const router  = express.Router();
-const Board   = require('../models/Board');
+const express  = require('express');
+const router   = express.Router();
+const Board    = require('../models/Board');
+const Category = require('../models/Category');
 
-// GET /api/boards — full board list grouped by root board
+// GET /api/boards — boards grouped by explicit category, nested by parentUri
 router.get('/', async (req, res) => {
   try {
-    const tier   = req.session?.poliPassTier || 0;
+    const tier    = req.session?.poliPassTier || 0;
     const isAdmin = req.session?.isAdmin || false;
-    const boards = await Board.find({ isListed: true }).sort({ uri: 1 }).lean();
-    const visible = isAdmin ? boards : boards.filter(b => (b.minTier || 0) <= tier);
 
-    // Build URI lookup for parent traversal
-    const byUri = {};
-    for (const b of boards) byUri[b.uri] = b;
+    const [categories, allBoards] = await Promise.all([
+      Category.find().sort({ order: 1, name: 1 }).lean(),
+      Board.find({ isListed: true }).sort({ uri: 1 }).lean()
+    ]);
 
-    // Walk up parentUri chain to find the root board's URI
-    function rootUri(board, depth = 0) {
-      if (depth > 10 || !board.parentUri) return board.uri;
-      const parent = byUri[board.parentUri];
-      if (!parent) return board.parentUri; // parent not in list
-      return rootUri(parent, depth + 1);
+    const visible = isAdmin ? allBoards : allBoards.filter(b => (b.minTier || 0) <= tier);
+
+    // Build children map keyed by parentUri, sorted alphabetically
+    const childrenOf = {};
+    for (const b of visible) {
+      if (b.parentUri) {
+        if (!childrenOf[b.parentUri]) childrenOf[b.parentUri] = [];
+        childrenOf[b.parentUri].push(b);
+      }
+    }
+    for (const key of Object.keys(childrenOf)) {
+      childrenOf[key].sort((a, b) => a.uri.localeCompare(b.uri));
     }
 
-    const grouped = {};
-    for (const board of visible) {
-      const key = rootUri(board);
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(board);
+    function buildTree(board) {
+      return {
+        uri:         board.uri,
+        name:        board.name,
+        threadCount: board.threadCount || 0,
+        postCount:   board.postCount   || 0,
+        minTier:     board.minTier     || 0,
+        children:    (childrenOf[board.uri] || []).map(buildTree)
+      };
     }
 
-    res.json({ boards: grouped });
+    const result = [];
+    for (const cat of categories) {
+      const topLevel = visible
+        .filter(b => b.categorySlug === cat.slug && !b.parentUri)
+        .sort((a, b) => a.uri.localeCompare(b.uri));
+
+      if (!topLevel.length) continue;
+
+      result.push({
+        slug:  cat.slug,
+        name:  cat.name,
+        type:  cat.type,
+        order: cat.order,
+        boards: topLevel.map(buildTree)
+      });
+    }
+
+    res.json({ categories: result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

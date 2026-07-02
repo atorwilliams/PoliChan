@@ -327,7 +327,7 @@ async function loadIndex() {
   app.innerHTML = '<div class="empty-state">Loading boards…</div>';
 
   try {
-    const { boards } = await api.get('/boards');
+    const { categories } = await api.get('/boards');
 
     let html = '';
 
@@ -350,52 +350,31 @@ async function loadIndex() {
 
     html += '<div class="index-box"><div class="index-box-header"><span>Boards</span></div><div class="index-box-body"><div class="board-list-columns">';
 
-    const globalGroups  = [];
-    const countryGroups = [];
-
-    for (const [key, list] of Object.entries(boards)) {
-      if (!list.length) continue;
-      const root = list.find(b => b.uri === key);
-      const sample = root || list[0];
-      const isCountry = sample?.homeCountry
-        || sample?.country?.length === 2
-        || sample?.allowedCountries?.length === 1;
-      (isCountry ? countryGroups : globalGroups).push([key, list]);
-    }
-
-    function renderGroup(key, list) {
-      const root     = list.find(b => b.uri === key);
-      const label    = root ? esc(root.name) : key.toUpperCase();
-      const children = list.filter(b => b.uri !== key);
-
-      const byParent = {};
-      for (const b of children) {
-        const p = b.parentUri || key;
-        if (!byParent[p]) byParent[p] = [];
-        byParent[p].push(b);
-      }
-
-      function renderRows(parentUri, depth) {
-        return (byParent[parentUri] || []).map(b =>
-          boardRow(b, depth > 0) + renderRows(b.uri, depth + 1)
-        ).join('');
-      }
-
-      let out = `<div class="board-list-section"><div class="board-list-group-header">${label}</div>`;
-      if (root) out += boardRow(root, false);
-      out += renderRows(key, 1);
-      out += '</div>';
+    function renderBoardTree(board, depth) {
+      let out = boardRow(board, depth);
+      for (const child of (board.children || [])) out += renderBoardTree(child, depth + 1);
       return out;
     }
 
-    if (globalGroups.length) {
+    const generalCats = (categories || []).filter(c => c.type !== 'country');
+    const countryCats = (categories || []).filter(c => c.type === 'country');
+
+    if (generalCats.length) {
       html += '<div class="board-list-category-header">General</div>';
-      for (const [key, list] of globalGroups) html += renderGroup(key, list);
+      for (const cat of generalCats) {
+        html += `<div class="board-list-section"><div class="board-list-group-header">${esc(cat.name)}</div>`;
+        for (const b of cat.boards) html += renderBoardTree(b, 0);
+        html += '</div>';
+      }
     }
 
-    if (countryGroups.length) {
+    if (countryCats.length) {
       html += '<div class="board-list-category-header">By Country</div>';
-      for (const [key, list] of countryGroups) html += renderGroup(key, list);
+      for (const cat of countryCats) {
+        html += `<div class="board-list-section"><div class="board-list-group-header">${esc(cat.name)}</div>`;
+        for (const b of cat.boards) html += renderBoardTree(b, 0);
+        html += '</div>';
+      }
     }
 
     html += '</div></div></div>';
@@ -442,9 +421,10 @@ function dismissIntro() {
   document.getElementById('index-intro')?.remove();
 }
 
-function boardRow(board, isChild) {
+function boardRow(board, depth) {
+  const indent = depth > 0 ? `padding-left:${depth * 18}px` : '';
   return `
-    <div class="board-list-row ${isChild ? 'child' : ''}" onclick="navigate('/${board.uri}/')">
+    <div class="board-list-row ${depth > 0 ? 'child' : ''}" style="${indent}" onclick="navigate('/${board.uri}/')">
       <span class="board-list-uri">/${board.uri}/</span>
       <span class="board-list-name">${esc(board.name)}</span>
       <span class="board-list-stats">${board.threadCount || 0}T / ${board.postCount || 0}P</span>
@@ -557,21 +537,27 @@ async function loadAds(uri) {
   }
 
   const sidebarSlot = document.getElementById('sp-side');
-  if (sidebarSlot) {
-    if (isMember || window.innerWidth <= 900) { sidebarSlot.style.display = 'none'; return; }
-    try {
-      const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
-      if (ad) {
-        sidebarSlot.innerHTML = `
-          <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px">Sponsored</div>
-          <a href="#" data-adv="${ad.advertiserId}" data-adid="${ad.adId}" data-url="${esc(ad.clickUrl)}" onclick="handleAdClick(event,this)">
-            <img src="${esc(ad.imageUrl)}" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
-          </a>`;
-        sidebarSlot.style.display = 'flex';
-        fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
-      }
-    } catch (_) {}
-  }
+  if (sidebarSlot) sidebarSlot.style.display = 'none';
+}
+
+async function loadThreadMidAd(uri) {
+  const slot = document.getElementById('sp-thread-mid');
+  if (!slot) return;
+  const isMember = (state.session?.poliPassTier || 0) >= 2;
+  if (isMember) { slot.remove(); return; }
+  try {
+    const { ad } = await fetch(`/api/ads/${uri}?type=sidebar`).then(r => r.json());
+    if (ad) {
+      slot.innerHTML = `
+        <span class="thread-mid-ad-label">Sponsored</span>
+        <a href="#" data-adv="${ad.advertiserId}" data-adid="${ad.adId}" data-url="${esc(ad.clickUrl)}" onclick="handleAdClick(event,this)">
+          <img src="${esc(ad.imageUrl)}" alt="ad" style="max-width:300px;max-height:250px;object-fit:contain;display:block">
+        </a>`;
+      fetch(`/api/ads/${ad.advertiserId}/${ad.adId}/impression`, { method: 'POST' }).catch(() => {});
+    } else {
+      slot.remove();
+    }
+  } catch (_) { slot.remove(); }
 }
 
 // ── User state (localStorage) ─────────────────────────────────────────────────
@@ -788,13 +774,14 @@ async function loadBoard(uri) {
         <img src="" alt="banner" style="width:468px;height:60px;object-fit:contain;max-width:100%">
       </div>
 
-      <div id="board-content"></div>
-
-      <div id="sp-side" style="display:none;position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:1000;flex-direction:column;align-items:center;gap:4px;width:160px">
-        <div style="font-size:0.68rem;color:var(--muted)">Sponsored</div>
-        <a id="sp-side-link" href="#" target="_blank" rel="noopener noreferrer">
-          <img id="sp-side-img" src="" alt="ad" style="width:160px;max-height:600px;object-fit:contain;display:block">
-        </a>
+      <div style="display:flex;gap:20px;align-items:flex-start">
+        <div id="board-content" style="flex:1;min-width:0"></div>
+        <div id="sp-side" style="display:none;flex-direction:column;align-items:center;gap:6px;width:160px;flex-shrink:0;position:sticky;top:80px">
+          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);opacity:0.6">Sponsored</div>
+          <a id="sp-side-link" href="#" target="_blank" rel="noopener noreferrer">
+            <img id="sp-side-img" src="" alt="ad" style="width:100%;max-height:500px;object-fit:contain;display:block">
+          </a>
+        </div>
       </div>
 
       <div id="sp-foot" style="display:none;margin:16px 0;width:100vw;margin-left:-24px;text-align:center">
@@ -1004,6 +991,7 @@ function renderIndexOP(t, uri) {
               [<a class="post-action mod-del" onclick="modDeleteThread('${uri}', ${id})">Del Thread</a>]
               [<a class="post-action mod-pin" onclick="modPin('${uri}', ${id}, ${!t.isPinned})">${t.isPinned ? 'Unpin' : 'Pin'}</a>]
               [<a class="post-action mod-lock" onclick="modLock('${uri}', ${id}, ${!t.isLocked})">${t.isLocked ? 'Unlock' : 'Lock'}</a>]
+              [<a class="post-action mod-move" onclick="modMoveThread('${uri}', ${id})">Move</a>]
               [<a class="post-action mod-ban" onclick="modBan('${uri}', ${id}, null)">Ban</a>]
             </span>`
           : ''}
@@ -1124,6 +1112,15 @@ async function loadThread(boardUri, threadId) {
     state.currentThread = thread;
     applyBoardCss(board.customCss || '');
 
+    // Build backlinks map: postId → [posts that quote it]
+    const backlinks = {};
+    for (const p of posts) {
+      for (const qid of (p.quotes || [])) {
+        if (!backlinks[qid]) backlinks[qid] = [];
+        backlinks[qid].push(p);
+      }
+    }
+
     let html = `
       <div class="breadcrumb">
         <a href="/" data-nav>boards</a>
@@ -1134,8 +1131,13 @@ async function loadThread(boardUri, threadId) {
         <span id="watch-btn" style="margin-left:auto;font-size:0.8rem">[<a href="#" onclick="toggleWatch('${boardUri}',${threadId},'${esc((thread.subject||'#'+thread.threadId).replace(/'/g,"\\'"))}',${posts.length});return false" id="watch-link">${_watched[`${boardUri}:${threadId}`] ? 'Unwatch' : 'Watch'}</a>]</span>
       </div>
       <div class="thread-view">
-        ${renderPost(thread, boardUri, true)}
-        ${posts.map(p => renderPost(p, boardUri, false)).join('')}
+        ${renderPost(thread, boardUri, true, backlinks)}
+        ${posts.map((p, i) => {
+          const midpoint = Math.floor(posts.length * 0.4);
+          const injectAd = posts.length >= 20 && i === midpoint;
+          return renderPost(p, boardUri, false, backlinks)
+            + (injectAd ? '<div id="sp-thread-mid" class="thread-mid-ad"></div>' : '');
+        }).join('')}
       </div>
       <div class="divider"></div>
       ${thread.isLocked
@@ -1149,6 +1151,7 @@ async function loadThread(boardUri, threadId) {
     loadFlairPicker();
     markThreadSeen(boardUri, threadId, posts.length);
     updateWatchedIndicator();
+    loadThreadMidAd(boardUri);
 
     // Scroll to anchor if present (e.g. navigated via cross-board >>quote)
     if (location.hash) {
@@ -1172,6 +1175,19 @@ async function loadThread(boardUri, threadId) {
       _socket.on('new-post', (post) => {
         const tv = document.querySelector('.thread-view');
         if (tv) tv.insertAdjacentHTML('beforeend', renderPost(post, boardUri, false));
+        // Update backlinks label on quoted posts
+        const pid = post.postId;
+        for (const qid of (post.quotes || [])) {
+          const blSpan = document.getElementById('bl-' + qid);
+          if (!blSpan) continue;
+          const existing = blSpan.dataset.pids ? blSpan.dataset.pids.split(',').filter(Boolean) : [];
+          existing.push(String(pid));
+          blSpan.dataset.pids = existing.join(',');
+          blSpan.textContent = existing.length === 1 ? '1 reply' : `${existing.length} replies`;
+          blSpan.onmouseenter = (e) => schedulePostPreview(e, blSpan);
+          blSpan.onmouseleave = () => cancelPostPreview();
+          blSpan.onclick = (e) => clickBacklinks(e, blSpan);
+        }
       });
     }
 
@@ -1180,7 +1196,7 @@ async function loadThread(boardUri, threadId) {
   }
 }
 
-function renderPost(post, boardUri, isOp) {
+function renderPost(post, boardUri, isOp, backlinks) {
   const id = post.postId || post.threadId;
   const mediaHtml = post.media ? renderMedia(post.media, boardUri) : '';
 
@@ -1199,6 +1215,16 @@ function renderPost(post, boardUri, isOp) {
     isOp && post.isLocked   ? '<span class="badge-locked">[Locked]</span>'      : '',
     isOp && post.bumpLimit  ? '<span class="badge-bump-limit">[Bump Limit]</span>' : ''
   ].filter(Boolean).join(' ');
+
+  const myBacklinks = (backlinks || {})[post.postId || post.threadId] || [];
+  const blId = post.postId || post.threadId;
+  const backlinksHtml = myBacklinks.length
+    ? (() => {
+        const pids = myBacklinks.map(p => p.postId || p.threadId);
+        const label = myBacklinks.length === 1 ? '1 reply' : `${myBacklinks.length} replies`;
+        return `<span class="post-backlinks" id="bl-${blId}" data-pids="${pids.join(',')}" onmouseenter="schedulePostPreview(event,this)" onmouseleave="cancelPostPreview()" onclick="clickBacklinks(event,this)">${label}</span>`;
+      })()
+    : `<span class="post-backlinks" id="bl-${blId}"></span>`;
 
   const isYou    = _yourPosts.has(String(id));
   const isHidden = _hiddenPosts.has(String(id));
@@ -1225,6 +1251,7 @@ function renderPost(post, boardUri, isOp) {
         <span class="post-no">No.<a class="post-id" href="#p${id}" onclick="quotePost(${id},'${boardUri}',${post.threadId});return false">${id}</a>${isYou ? '<span class="you-tag"> (You)</span>' : ''}</span>
         ${isOp ? '<span class="post-reply-wrap">[<a class="post-inline-link" href="#rp-form" onclick="document.getElementById(\'rp-form-wrap\').style.display=\'block\';document.getElementById(\'rp-body\').focus();return false">Reply</a>]</span>' : ''}
         ${badges}
+        ${backlinksHtml}
       </div>
       <blockquote class="postMessage">${bodyHtml}</blockquote>
       ${isOp && post.poll ? renderPoll(post.poll, boardUri, post.threadId) : ''}
@@ -1237,7 +1264,8 @@ function renderPost(post, boardUri, isOp) {
               ${isOp
                 ? `[<a class="post-action mod-del" onclick="modDeleteThread('${boardUri}', ${post.threadId})">Del Thread</a>]
                    [<a class="post-action mod-pin" onclick="modPin('${boardUri}', ${post.threadId}, ${!post.isPinned})">${post.isPinned ? 'Unpin' : 'Pin'}</a>]
-                   [<a class="post-action mod-lock" onclick="modLock('${boardUri}', ${post.threadId}, ${!post.isLocked})">${post.isLocked ? 'Unlock' : 'Lock'}</a>]`
+                   [<a class="post-action mod-lock" onclick="modLock('${boardUri}', ${post.threadId}, ${!post.isLocked})">${post.isLocked ? 'Unlock' : 'Lock'}</a>]
+                   [<a class="post-action mod-move" onclick="modMoveThread('${boardUri}', ${post.threadId})">Move</a>]`
                 : `[<a class="post-action mod-del" onclick="modDeletePost('${boardUri}', ${id}, ${post.threadId})">Del</a>]`
               }
               [<a class="post-action mod-ban" onclick="modBan('${boardUri}', ${post.threadId}, ${isOp ? 'null' : id})">Ban</a>]
@@ -1247,6 +1275,105 @@ function renderPost(post, boardUri, isOp) {
     </div>`;
 
   return isOp ? postEl : `<div class="reply-container" id="rc-${id}">${postEl}</div>`;
+}
+
+let _previewTimer = null;
+
+function clickBacklinks(event, el) {
+  event.stopPropagation();
+  cancelPostPreview();
+  const pids = (el.dataset.pids || '').split(',').filter(Boolean);
+  if (!pids.length) return;
+
+  if (pids.length === 1) {
+    scrollToPost(parseInt(pids[0]));
+    return;
+  }
+
+  let picker = document.getElementById('reply-picker');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'reply-picker';
+    document.body.appendChild(picker);
+    document.addEventListener('click', (e) => {
+      if (!picker.contains(e.target)) picker.style.display = 'none';
+    });
+  }
+
+  picker.innerHTML = pids.map(pid =>
+    `<a href="#p${pid}" onclick="scrollToPost(${pid});document.getElementById('reply-picker').style.display='none';return false">&gt;&gt;${pid}</a>`
+  ).join('');
+
+  const rect = el.getBoundingClientRect();
+  picker.style.left    = rect.left + 'px';
+  picker.style.top     = (rect.bottom + 4) + 'px';
+  picker.style.display = 'block';
+}
+
+function scrollToPost(postId) {
+  const el = document.getElementById('p' + postId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.outline = '2px solid var(--quotelink)';
+    setTimeout(() => { el.style.outline = ''; }, 1500);
+  }
+  return false;
+}
+
+function schedulePostPreview(event, triggerEl) {
+  cancelPostPreview();
+  const x = event.clientX;
+  const y = event.clientY;
+  _previewTimer = setTimeout(() => showPostPreview(x, y, triggerEl), 500);
+}
+
+function cancelPostPreview() {
+  clearTimeout(_previewTimer);
+  _previewTimer = null;
+  const popup = document.getElementById('post-preview-popup');
+  if (popup) {
+    popup.style.opacity = '0';
+    popup.style.display = 'none';
+  }
+}
+
+function showPostPreview(x, y, triggerEl) {
+  const pids = (triggerEl.dataset.pids || '').split(',').filter(Boolean);
+  if (!pids.length) return;
+
+  let popup = document.getElementById('post-preview-popup');
+  if (!popup) {
+    popup = document.createElement('div');
+    popup.id = 'post-preview-popup';
+    document.body.appendChild(popup);
+  }
+
+  popup.innerHTML = '';
+  for (let i = 0; i < pids.length; i++) {
+    const srcEl = document.getElementById('p' + pids[i]);
+    if (!srcEl) continue;
+    if (i > 0) {
+      const divider = document.createElement('div');
+      divider.style.cssText = 'border-top:1px solid var(--border);margin:6px 0';
+      popup.appendChild(divider);
+    }
+    const clone = document.createElement('div');
+    clone.innerHTML = srcEl.outerHTML;
+    clone.querySelector('.post-footer')?.remove();
+    clone.querySelector('.mod-controls')?.remove();
+    clone.querySelector('.post-backlinks')?.remove();
+    clone.querySelector('.post-hidden-bar')?.remove();
+    popup.appendChild(clone);
+  }
+
+  const px = Math.min(x + 14, window.innerWidth - 500);
+  const py = Math.min(y + 14, window.innerHeight - 240);
+  popup.style.left    = px + 'px';
+  popup.style.top     = py + 'px';
+  popup.style.opacity = '0';
+  popup.style.display = 'block';
+  // Trigger fade-in on next frame
+  requestAnimationFrame(() => { popup.style.opacity = '1'; });
 }
 
 function renderMedia(media, boardUri) {
@@ -1758,6 +1885,75 @@ async function modBan(boardUri, threadId, postId) {
     });
     toast('Banned' + (hours ? ` for ${hours}h` : ' permanently'));
   } catch (e) { toast('Ban failed: ' + e.message, true); }
+}
+
+async function modMoveThread(boardUri, threadId) {
+  // Lazily build the move dialog the first time it's needed
+  let dialog = document.getElementById('mod-move-dialog');
+  if (!dialog) {
+    dialog = document.createElement('div');
+    dialog.id = 'mod-move-dialog';
+    dialog.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center';
+    dialog.innerHTML = `
+      <div style="background:#fff;padding:24px;min-width:280px;max-width:380px;width:90%">
+        <div style="font-size:0.9rem;font-weight:bold;margin-bottom:10px;color:#000">Move Thread</div>
+        <div style="font-size:0.82rem;color:#555;margin-bottom:10px" id="mod-move-label"></div>
+        <select id="mod-move-select" style="width:100%;margin-bottom:14px;background:#fff;color:#000;border:1px solid #ccc;padding:6px;font-size:0.85rem"></select>
+        <div style="display:flex;gap:8px">
+          <button id="mod-move-confirm" style="padding:6px 16px;background:#2d8a2d;color:#fff;border:none;cursor:pointer;font-size:0.85rem">Move</button>
+          <button onclick="document.getElementById('mod-move-dialog').style.display='none'" style="padding:6px 16px;background:#fff;color:#333;border:1px solid #ccc;cursor:pointer;font-size:0.85rem">Cancel</button>
+          <span id="mod-move-error" style="font-size:0.78rem;color:#c00;align-self:center"></span>
+        </div>
+      </div>`;
+    document.body.appendChild(dialog);
+  }
+
+  // Populate board list
+  const sel = document.getElementById('mod-move-select');
+  sel.innerHTML = '<option value="">Loading…</option>';
+  dialog.style.display = 'flex';
+  document.getElementById('mod-move-label').textContent = `Thread #${threadId} on /${boardUri}/`;
+  document.getElementById('mod-move-error').textContent = '';
+
+  try {
+    const { categories } = await api.get('/boards');
+    sel.innerHTML = '';
+    for (const cat of (categories || [])) {
+      const grp = document.createElement('optgroup');
+      grp.label = cat.name;
+      grp.style.cssText = 'background:#fff;color:#555';
+      function addOptions(boards) {
+        for (const b of boards) {
+          if (b.uri === boardUri) { addOptions(b.children || []); continue; }
+          const opt = document.createElement('option');
+          opt.value = b.uri;
+          opt.textContent = `/${b.uri}/ — ${b.name}`;
+          opt.style.cssText = 'background:#fff;color:#000';
+          grp.appendChild(opt);
+          addOptions(b.children || []);
+        }
+      }
+      addOptions(cat.boards || []);
+      if (grp.children.length) sel.appendChild(grp);
+    }
+    if (!sel.options.length) sel.innerHTML = '<option value="">No other boards available</option>';
+  } catch (e) {
+    sel.innerHTML = '<option value="">Failed to load boards</option>';
+  }
+
+  document.getElementById('mod-move-confirm').onclick = async () => {
+    const targetBoardUri = sel.value;
+    if (!targetBoardUri) return;
+    const errEl = document.getElementById('mod-move-error');
+    errEl.textContent = '';
+    try {
+      await api.post('/mod/move/thread', { boardUri, threadId, targetBoardUri });
+      dialog.style.display = 'none';
+      navigate(`/${targetBoardUri}/${threadId}`);
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  };
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

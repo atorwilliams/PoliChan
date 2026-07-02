@@ -17,6 +17,27 @@ const geoip          = require('../services/geoip');
 const CountryFlair   = require('../models/CountryFlair');
 const config         = require('../config');
 
+// GET /api/posts/find/:id — resolve a global post/thread ID to its board+thread
+// MUST be defined before /:boardUri/:threadId to avoid being shadowed
+router.get('/find/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+  const thread = await Thread.findOne({ threadId: id })
+    .select('boardUri threadId').lean();
+  if (thread) {
+    return res.json({ boardUri: thread.boardUri, threadId: thread.threadId, postId: id, isOp: true });
+  }
+
+  const post = await Post.findOne({ postId: id })
+    .select('boardUri threadId postId').lean();
+  if (post) {
+    return res.json({ boardUri: post.boardUri, threadId: post.threadId, postId: id, isOp: false });
+  }
+
+  res.status(404).json({ error: 'Post not found' });
+});
+
 // GET /api/posts/:boardUri/:threadId — all posts in a thread
 router.get('/:boardUri/:threadId', async (req, res) => {
   try {
@@ -195,28 +216,6 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// GET /api/posts/find/:id — resolve a global post/thread ID to its location
-router.get('/find/:id', async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Invalid id' });
-
-  // Check threads first (OP posts live in Thread collection)
-  const thread = await Thread.findOne({ threadId: id })
-    .select('boardUri threadId').lean();
-  if (thread) {
-    return res.json({ boardUri: thread.boardUri, threadId: thread.threadId, postId: id, isOp: true });
-  }
-
-  // Check replies
-  const post = await Post.findOne({ postId: id })
-    .select('boardUri threadId postId').lean();
-  if (post) {
-    return res.json({ boardUri: post.boardUri, threadId: post.threadId, postId: id, isOp: false });
-  }
-
-  res.status(404).json({ error: 'Post not found' });
 });
 
 // POST /api/posts/:boardUri/:threadId/report
