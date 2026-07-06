@@ -18,22 +18,24 @@ const CountryFlair   = require('../models/CountryFlair');
 const config         = require('../config');
 const removal        = require('../services/removal');
 
-// GET /api/posts/find/:id — resolve a global post/thread ID to its board+thread
+// GET /api/posts/find/:boardUri/:id — resolve a board-local post/thread ID
+// to its thread. IDs are per-board, so the board is required context.
 // MUST be defined before /:boardUri/:threadId to avoid being shadowed
-router.get('/find/:id', async (req, res) => {
+router.get('/find/:boardUri/:id', async (req, res) => {
+  const boardUri = req.params.boardUri;
   const id = parseInt(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid id' });
 
-  const thread = await Thread.findOne({ threadId: id })
+  const thread = await Thread.findOne({ boardUri, threadId: id })
     .select('boardUri threadId').lean();
   if (thread) {
-    return res.json({ boardUri: thread.boardUri, threadId: thread.threadId, postId: id, isOp: true });
+    return res.json({ boardUri, threadId: thread.threadId, postId: id, isOp: true });
   }
 
-  const post = await Post.findOne({ postId: id })
+  const post = await Post.findOne({ boardUri, postId: id })
     .select('boardUri threadId postId').lean();
   if (post) {
-    return res.json({ boardUri: post.boardUri, threadId: post.threadId, postId: id, isOp: false });
+    return res.json({ boardUri, threadId: post.threadId, postId: id, isOp: false });
   }
 
   res.status(404).json({ error: 'Post not found' });
@@ -98,8 +100,10 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
 
     const { body, name: rawName } = req.body;
     const name = rawName?.trim().slice(0, 50) || '';
-    if (!body?.trim()) return res.status(400).json({ error: 'Body is required' });
-    if (body.length > 5000) return res.status(400).json({ error: 'Body must be 5000 characters or fewer' });
+    // Replies may be image-only; threads (threads.js) still require both.
+    const text = body?.trim() || '';
+    if (!text && !req.file) return res.status(400).json({ error: 'A comment or an image is required' });
+    if (text.length > 5000) return res.status(400).json({ error: 'Body must be 5000 characters or fewer' });
 
     // Process upload if present
     let mediaDoc = null;
@@ -111,8 +115,8 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       }
     }
 
-    // Get next globally unique postId
-    const postId = await counter.nextId();
+    // Get next ID in this board's sequence
+    const postId = await counter.nextId(boardUri);
 
     const rawIp = req.ip || req.connection.remoteAddress;
     const ip    = ipHash.hash(rawIp);
@@ -170,10 +174,10 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       threadId,
       postId,
       name,
-      body:      body.trim(),
-      bodyHtml:  await markup.process(body.trim()),
-      quotes:    markup.extractQuotes(body),
-      sourceTag: sourceTag.tag(body),
+      body:      text,
+      bodyHtml:  text ? await markup.process(text) : '',
+      quotes:    markup.extractQuotes(text),
+      sourceTag: sourceTag.tag(text),
       media:     mediaDoc,
       ip,
       authorId:     req.session?.accountId || null,

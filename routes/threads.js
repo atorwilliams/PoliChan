@@ -148,8 +148,8 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
       }
     }
 
-    // Get next globally unique threadId
-    const threadId = await counter.nextId();
+    // Get next ID in this board's sequence
+    const threadId = await counter.nextId(board.uri);
 
     const rawIp = req.ip || req.connection.remoteAddress;
     const ip    = ipHash.hash(rawIp);

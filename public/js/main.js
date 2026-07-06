@@ -165,23 +165,30 @@ document.addEventListener('click', e => {
   const a = e.target.closest('a[data-nav]');
   if (a) { e.preventDefault(); closeNavMenu(); navigate(a.getAttribute('href')); return; }
 
-  // Quotelink cross-thread resolution
+  // Quotelink cross-thread resolution. Post IDs are board-local, so lookups
+  // need a board: >>>/board/N links carry theirs in data-board, plain >>N
+  // means the board currently being viewed.
   const ql = e.target.closest('.quotelink');
   if (ql) {
     e.preventDefault();
-    const m = ql.getAttribute('href')?.match(/#p(\d+)$/);
+    const m = ql.getAttribute('href')?.match(/#x?p(\d+)$/);
     if (!m) return;
     const id = m[1];
-    const target = document.getElementById('p' + id);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.style.outline = '2px solid var(--quotelink)';
-      setTimeout(() => { target.style.outline = ''; }, 1500);
-    } else {
-      api.get('/posts/find/' + id)
-        .then(({ boardUri, threadId }) => navigate(`/${boardUri}/${threadId}#p${id}`))
-        .catch(() => { /* post gone or not found */ });
+    const xBoard = ql.dataset.board || null;
+    if (!xBoard) {
+      const target = document.getElementById('p' + id);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.style.outline = '2px solid var(--quotelink)';
+        setTimeout(() => { target.style.outline = ''; }, 1500);
+        return;
+      }
     }
+    const board = xBoard || state.currentBoard?.uri || location.pathname.split('/')[1];
+    if (!board) return;
+    api.get('/posts/find/' + board + '/' + id)
+      .then(({ boardUri, threadId }) => navigate(`/${boardUri}/${threadId}#p${id}`))
+      .catch(() => { /* post gone or not found */ });
   }
 });
 
@@ -220,6 +227,10 @@ function renderNav(activePath) {
     <div class="nav-right">
       ${tierBadge}
       ${session?.isAdmin ? '<a href="/admin" style="color:#ffaaaa;font-size:0.82rem;text-decoration:none;font-weight:bold">Admin</a>' : ''}
+      ${!session?.isAdmin && session?.staffRole ? `<span class="nav-role-badge">${session.staffRole === 'janitor' ? 'Janitor' : 'Mod'}</span>` : ''}
+      ${!session?.isAdmin && !session?.staffRole && session?.boardRoles?.length
+        ? session.boardRoles.map(r => `<a class="nav-role-badge" href="/manage/${esc(r.boardUri)}" title="Open the /${esc(r.boardUri)}/ moderation panel">${r.role === 'janitor' ? 'Janitor' : 'Mod'} /${esc(r.boardUri)}/</a>`).join('')
+        : ''}
       <button id="walletBtn" class="${session?.authenticated ? 'connected' : ''}">${walletLabel}</button>
       <button id="theme-toggle" onclick="toggleTheme()" title="Switch theme" style="width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);cursor:pointer;padding:0;flex-shrink:0"></button>
       <button id="nav-toggle" aria-label="Menu" onclick="toggleNavMenu()">☰</button>
@@ -1233,12 +1244,23 @@ async function loadThread(boardUri, threadId) {
   }
 }
 
+// Global staff moderate everywhere; board mods only on their own boards.
+// Ban and Move stay global-only (they reach beyond a single board).
+function isGlobalStaff() {
+  return !!(state.session?.isAdmin || state.session?.staffRole);
+}
+function canModBoard(boardUri) {
+  if (isGlobalStaff()) return true;
+  return (state.session?.boardRoles || [])
+    .some(r => r.boardUri === boardUri && ['mod', 'janitor'].includes(r.role));
+}
+
 function renderPost(post, boardUri, isOp, backlinks) {
   const id = post.postId || post.threadId;
 
   // Public stub for a staff-removed post (server strips the body for
   // non-staff). Keeps the post's slot and number so quotes still resolve.
-  if (post.isRemoved && !post.body) {
+  if (post.isRemoved && post.stubbed) {
     const stub = `
       <div class="post reply post-removed" id="p${id}">
         <div class="postInfo">
@@ -1314,16 +1336,16 @@ function renderPost(post, boardUri, isOp, backlinks) {
         [<a class="post-action" onclick="quotePost(${id},'${boardUri}',${post.threadId})">Reply</a>]
         [<a class="post-action" onclick="togglePostHide(${id})">Hide</a>]
         [<a class="post-action" onclick="reportPost('${boardUri}', ${post.threadId}, ${isOp ? 'null' : id})">Report</a>]
-        ${(state.session?.isAdmin || state.session?.staffRole)
+        ${canModBoard(boardUri)
           ? `<span class="mod-controls">
               ${isOp
                 ? `[<a class="post-action mod-del" onclick="modDeleteThread('${boardUri}', ${post.threadId})">Del Thread</a>]
                    [<a class="post-action mod-pin" onclick="modPin('${boardUri}', ${post.threadId}, ${!post.isPinned})">${post.isPinned ? 'Unpin' : 'Pin'}</a>]
                    [<a class="post-action mod-lock" onclick="modLock('${boardUri}', ${post.threadId}, ${!post.isLocked})">${post.isLocked ? 'Unlock' : 'Lock'}</a>]
-                   [<a class="post-action mod-move" onclick="modMoveThread('${boardUri}', ${post.threadId})">Move</a>]`
+                   ${isGlobalStaff() ? `[<a class="post-action mod-move" onclick="modMoveThread('${boardUri}', ${post.threadId})">Move</a>]` : ''}`
                 : `[<a class="post-action mod-del" onclick="modDeletePost('${boardUri}', ${id}, ${post.threadId})">Del</a>]`
               }
-              [<a class="post-action mod-ban" onclick="modBan('${boardUri}', ${post.threadId}, ${isOp ? 'null' : id})">Ban</a>]
+              ${isGlobalStaff() ? `[<a class="post-action mod-ban" onclick="modBan('${boardUri}', ${post.threadId}, ${isOp ? 'null' : id})">Ban</a>]` : ''}
             </span>`
           : ''}
       </div>
@@ -1586,6 +1608,10 @@ function setupQuickReply(boardUri, threadId) {
             <td class="lbl">Comment</td>
             <td><textarea id="qr-body" rows="4" style="width:100%;min-width:180px" maxlength="5000"></textarea></td>
           </tr>
+          <tr>
+            <td class="lbl">File</td>
+            <td><input type="file" id="qr-file" accept="image/jpeg,image/png,image/gif,image/webp,video/webm,video/mp4" style="width:100%;font-size:0.78rem"></td>
+          </tr>
           ${captchaRowHtml('qr-captcha')}
           ${state.session?.authenticated && state.session?.tripcode ? `<tr>
             <td class="lbl"></td>
@@ -1604,7 +1630,7 @@ function setupQuickReply(boardUri, threadId) {
         </tbody>
       </table>
       <div style="padding:5px 0">
-        <input type="submit" class="submit-btn" value="Post Reply" onclick="submitQR('${boardUri}', ${threadId})">
+        <input type="submit" class="submit-btn" id="qr-submit" value="Post Reply" onclick="submitQR('${boardUri}', ${threadId})">
         <span id="qr-error" style="color:red;font-size:0.78rem;margin-left:8px"></span>
       </div>
     </div>`;
@@ -1718,7 +1744,7 @@ async function submitReply(boardUri, threadId) {
   const errEl     = document.getElementById('rp-error');
   const btn       = document.getElementById('rp-submit');
 
-  if (!body) { errEl.textContent = 'A comment is required.'; return; }
+  if (!body && !fileInput?.files?.[0]) { errEl.textContent = 'A comment or an image is required.'; return; }
 
   const captchaToken = getCaptchaToken('rp-captcha');
   if (state.turnstileSiteKey && !state.session?.authenticated && !captchaToken) {
@@ -1748,28 +1774,36 @@ async function submitReply(boardUri, threadId) {
 }
 
 async function submitQR(boardUri, threadId) {
-  const name    = document.getElementById('qr-name')?.value.trim();
-  const options = document.getElementById('qr-options')?.value.trim().toLowerCase();
-  const body    = document.getElementById('qr-body')?.value.trim();
-  const errEl   = document.getElementById('qr-error');
-  if (!body) { errEl.textContent = 'A comment is required.'; return; }
+  const name      = document.getElementById('qr-name')?.value.trim();
+  const options   = document.getElementById('qr-options')?.value.trim().toLowerCase();
+  const body      = document.getElementById('qr-body')?.value.trim();
+  const fileInput = document.getElementById('qr-file');
+  const errEl     = document.getElementById('qr-error');
+  const btn       = document.getElementById('qr-submit');
+  if (!body && !fileInput?.files?.[0]) { errEl.textContent = 'A comment or an image is required.'; return; }
   const captchaToken = getCaptchaToken('qr-captcha');
   if (state.turnstileSiteKey && !state.session?.authenticated && !captchaToken) {
     errEl.textContent = 'Please complete the captcha.'; return;
   }
   errEl.textContent = '';
+
+  const isVideo = fileInput?.files?.[0]?.type.startsWith('video/');
+  if (btn) { btn.disabled = true; btn.value = isVideo ? 'Processing…' : 'Posting…'; }
+
   try {
     const fields = { body, name, sage: options === 'sage' };
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('qr-anon')?.checked) fields.postAnon = 'true';
-    const { postId } = await api.post(`/posts/${boardUri}/${threadId}`, fields);
+    const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     addYourPost(postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
     errEl.textContent = e.message;
     resetCaptcha('qr-captcha');
+  } finally {
+    if (btn) { btn.disabled = false; btn.value = 'Post Reply'; }
   }
 }
 

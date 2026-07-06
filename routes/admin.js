@@ -538,9 +538,10 @@ router.delete('/api/bans/:id', async (req, res) => {
 
 // ── Staff accounts ────────────────────────────────────────────────────────────
 
+// walletAddress is included on purpose: this is the admin panel and the
+// tripcode alone can't identify who a staff account belongs to.
 router.get('/api/accounts', async (req, res) => {
-  const accounts = await Account.find({ staffRole: { $ne: null } })
-    .select('-walletAddress').lean();
+  const accounts = await Account.find({ staffRole: { $ne: null } }).lean();
   res.json({ accounts });
 });
 
@@ -563,11 +564,16 @@ router.post('/api/accounts/assign', async (req, res) => {
     if (!['mod', 'janitor'].includes(staffRole)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
+    if (!walletAddress?.trim()) return res.status(400).json({ error: 'walletAddress required' });
+    // Login stores addresses lowercase — a checksummed address here would
+    // create a duplicate account (with a different tripcode) that never
+    // matches at login, so the role would silently do nothing.
+    const addr = walletAddress.trim().toLowerCase();
     const tripcode = require('../services/tripcode');
-    const tc = tripcode.generate(walletAddress);
+    const tc = tripcode.generate(addr);
     await Account.findOneAndUpdate(
-      { walletAddress },
-      { walletAddress, staffRole, tripcode: tc },
+      { walletAddress: addr },
+      { walletAddress: addr, staffRole, tripcode: tc },
       { upsert: true, new: true }
     );
     res.json({ ok: true });

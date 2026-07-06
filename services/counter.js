@@ -9,13 +9,20 @@ const counterSchema = new mongoose.Schema({
 
 const Counter = mongoose.model('Counter', counterSchema);
 
+// Counter docs are keyed "board:<uri>" so a board named "global" can never
+// collide with the legacy site-wide counter doc (_id: 'global').
+function key(boardUri) {
+  return `board:${boardUri}`;
+}
+
 /**
- * Atomically increment and return the next global post ID.
- * Shared across threads and posts so every number on the site is unique.
+ * Atomically increment and return the next post/thread ID for a board.
+ * Threads and posts share one sequence per board, so every number on a
+ * given board is unique — but numbering is independent between boards.
  */
-async function nextId() {
+async function nextId(boardUri) {
   const doc = await Counter.findOneAndUpdate(
-    { _id: 'global' },
+    { _id: key(boardUri) },
     { $inc: { seq: 1 } },
     { upsert: true, new: true }
   );
@@ -23,46 +30,49 @@ async function nextId() {
 }
 
 /**
- * On startup: sync the counter to max(existing threadIds, postIds) so it
- * never collides with IDs that were created before the counter existed.
- * Safe to call every boot — a no-op if counter is already ahead.
+ * On startup: sync each board's counter to max(existing threadIds, postIds)
+ * on that board so it never collides with IDs created before the counter
+ * existed. Safe to call every boot — a no-op if counters are already ahead.
  */
 async function sync() {
   const Thread = mongoose.model('Thread');
   const Post   = mongoose.model('Post');
 
-  const [lastThread, lastPost, existing] = await Promise.all([
-    Thread.findOne().sort({ threadId: -1 }).select('threadId').lean(),
-    Post.findOne().sort({ postId: -1 }).select('postId').lean(),
-    Counter.findOne({ _id: 'global' }).lean()
+  const [threadMax, postMax] = await Promise.all([
+    Thread.aggregate([{ $group: { _id: '$boardUri', max: { $max: '$threadId' } } }]),
+    Post.aggregate([{ $group: { _id: '$boardUri', max: { $max: '$postId' } } }])
   ]);
 
-  const maxExisting = Math.max(
-    lastThread?.threadId || 0,
-    lastPost?.postId    || 0
-  );
-  const currentSeq = existing?.seq || 0;
+  const maxByBoard = {};
+  for (const { _id, max } of [...threadMax, ...postMax]) {
+    maxByBoard[_id] = Math.max(maxByBoard[_id] || 0, max || 0);
+  }
 
-  if (maxExisting > currentSeq) {
-    await Counter.findOneAndUpdate(
-      { _id: 'global', seq: { $lt: maxExisting } },
+  for (const [boardUri, maxExisting] of Object.entries(maxByBoard)) {
+    const res = await Counter.updateOne(
+      { _id: key(boardUri), seq: { $lt: maxExisting } },
       { $set: { seq: maxExisting } },
       { upsert: true }
-    );
-    console.log(`[counter] synced to ${maxExisting}`);
+    ).catch(err => {
+      // Upsert race with an existing doc whose seq is already ahead — fine.
+      if (err.code === 11000) return null;
+      throw err;
+    });
+    if (res?.modifiedCount || res?.upsertedCount) {
+      console.log(`[counter] /${boardUri}/ synced to ${maxExisting}`);
+    }
   }
+
+  // Retire the legacy site-wide counter if it is still around.
+  await Counter.deleteOne({ _id: 'global' });
 }
 
 /**
- * Reset the counter to zero so post numbering restarts at 1.
+ * Reset all board counters so post numbering restarts at 1 everywhere.
  * Only safe when all threads and posts have been deleted (soft reset).
  */
 async function reset() {
-  await Counter.findOneAndUpdate(
-    { _id: 'global' },
-    { $set: { seq: 0 } },
-    { upsert: true }
-  );
+  await Counter.deleteMany({ _id: /^board:/ });
 }
 
 module.exports = { nextId, sync, reset };

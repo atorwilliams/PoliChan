@@ -88,6 +88,7 @@ router.get('/me', (req, res) => {
     authenticated: true,
     isAdmin:       req.session.isAdmin,
     staffRole:     req.session.staffRole,
+    boardRoles:    req.session.boardRoles || [],
     tripcode:      req.session.tripcode || null,
     flair:         req.session.flair,
     flairColor:    req.session.flairColor    || null,

@@ -96,8 +96,11 @@
 
     if (!accounts.length) { el.innerHTML = '<div class="empty">No staff assigned yet</div>'; return; }
 
-    el.innerHTML = '<table><thead><tr><th>Tripcode</th><th>Role</th><th>Since</th><th></th></tr></thead><tbody>'
+    el.innerHTML = '<table><thead><tr><th>Wallet</th><th>Tripcode</th><th>Role</th><th>Since</th><th></th></tr></thead><tbody>'
       + accounts.map(a => `<tr>
+          <td class="mono" title="${esc(a.walletAddress || '')}">${a.walletAddress ? esc(a.walletAddress.slice(0, 8) + '...' + a.walletAddress.slice(-6)) : '—'}
+            ${a.walletAddress ? `<a href="#" onclick="navigator.clipboard.writeText('${esc(a.walletAddress)}');toast('Address copied');return false" style="font-size:0.7rem;color:var(--blue)">copy</a>` : ''}
+          </td>
           <td class="mono">${a.tripcode ? '##' + esc(a.tripcode) : '—'}</td>
           <td><span class="badge badge-${a.staffRole}">${a.staffRole}</span></td>
           <td class="mono">${formatDate(a.createdAt)}</td>

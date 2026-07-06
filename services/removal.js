@@ -13,6 +13,7 @@ function stubPost(p) {
     createdAt: p.createdAt,
     quotes:    p.quotes || [],
     isRemoved: true,
+    stubbed:   true,  // explicit marker — body can be legitimately empty (image-only posts)
     removedReason: p.removedReason,
     body: '', bodyHtml: null, media: null,
     name: '', tripcode: null, flair: null, flairColor: null, flairBgColor: null

@@ -11,17 +11,40 @@ const Report  = require('../models/Report');
 const ipHash  = require('../services/ipHash');
 const Board   = require('../models/Board');
 const { requireMod } = require('../middleware/auth');
+const media = require('../services/media');
 
 const UPLOADS_ROOT = path.join(__dirname, '../public/uploads');
 
-router.use(requireMod);
+// Global staff pass everything; board mods pass only for their own board
+// (boardUri comes from the request body on these routes).
+function requireBoardScope(req, res, next) {
+  const s = req.session;
+  if (!s) return res.status(401).json({ error: 'Not authenticated' });
+  if (s.isAdmin || ['mod', 'janitor'].includes(s.staffRole)) return next();
+  const boardUri = req.body.boardUri;
+  if (boardUri && (s.boardRoles || []).some(r => r.boardUri === boardUri && ['mod', 'janitor'].includes(r.role))) {
+    return next();
+  }
+  return res.status(403).json({ error: 'Forbidden' });
+}
 
 // POST /api/mod/delete/thread
-router.post('/delete/thread', async (req, res) => {
+router.post('/delete/thread', requireBoardScope, async (req, res) => {
   try {
-    const { boardUri, threadId } = req.body;
-    await Thread.deleteOne({ boardUri, threadId: parseInt(threadId) });
-    await Post.deleteMany({ boardUri, threadId: parseInt(threadId) });
+    const { boardUri } = req.body;
+    const threadId = parseInt(req.body.threadId);
+    const thread = await Thread.findOne({ boardUri, threadId }).lean();
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const posts = await Post.find({ boardUri, threadId }).select('media').lean();
+    media.deleteFiles(boardUri, thread.media);
+    for (const p of posts) media.deleteFiles(boardUri, p.media);
+
+    await Thread.deleteOne({ _id: thread._id });
+    await Post.deleteMany({ boardUri, threadId });
+    await Board.updateOne({ uri: boardUri }, {
+      $inc: { threadCount: thread.isArchived ? 0 : -1, postCount: -posts.length }
+    });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -29,10 +52,17 @@ router.post('/delete/thread', async (req, res) => {
 });
 
 // POST /api/mod/delete/post
-router.post('/delete/post', async (req, res) => {
+router.post('/delete/post', requireBoardScope, async (req, res) => {
   try {
-    const { boardUri, postId } = req.body;
-    await Post.deleteOne({ boardUri, postId: parseInt(postId) });
+    const { boardUri } = req.body;
+    const postId = parseInt(req.body.postId);
+    const post = await Post.findOne({ boardUri, postId }).lean();
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    media.deleteFiles(boardUri, post.media);
+    await Post.deleteOne({ _id: post._id });
+    await Thread.updateOne({ boardUri, threadId: post.threadId }, { $inc: { replyCount: -1 } });
+    await Board.updateOne({ uri: boardUri }, { $inc: { postCount: -1 } });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,7 +70,7 @@ router.post('/delete/post', async (req, res) => {
 });
 
 // POST /api/mod/pin
-router.post('/pin', async (req, res) => {
+router.post('/pin', requireBoardScope, async (req, res) => {
   try {
     const { boardUri, threadId, pinned } = req.body;
     await Thread.updateOne({ boardUri, threadId: parseInt(threadId) }, { isPinned: !!pinned });
@@ -51,7 +81,7 @@ router.post('/pin', async (req, res) => {
 });
 
 // POST /api/mod/lock
-router.post('/lock', async (req, res) => {
+router.post('/lock', requireBoardScope, async (req, res) => {
   try {
     const { boardUri, threadId, locked } = req.body;
     await Thread.updateOne({ boardUri, threadId: parseInt(threadId) }, { isLocked: !!locked });
@@ -61,8 +91,8 @@ router.post('/lock', async (req, res) => {
   }
 });
 
-// POST /api/mod/ban
-router.post('/ban', async (req, res) => {
+// POST /api/mod/ban — global staff only
+router.post('/ban', requireMod, async (req, res) => {
   try {
     const { boardUri, postId, threadId, reason, durationHours } = req.body;
 
@@ -91,8 +121,8 @@ router.post('/ban', async (req, res) => {
   }
 });
 
-// POST /api/mod/move/thread
-router.post('/move/thread', async (req, res) => {
+// POST /api/mod/move/thread — global staff only (touches two boards)
+router.post('/move/thread', requireMod, async (req, res) => {
   try {
     const { boardUri, threadId, targetBoardUri } = req.body;
     if (!boardUri || !threadId || !targetBoardUri)
@@ -145,8 +175,8 @@ router.post('/move/thread', async (req, res) => {
   }
 });
 
-// POST /api/mod/report/resolve
-router.post('/report/resolve', async (req, res) => {
+// POST /api/mod/report/resolve — global staff only
+router.post('/report/resolve', requireMod, async (req, res) => {
   try {
     const { reportId } = req.body;
     await Report.updateOne({ _id: reportId }, {
