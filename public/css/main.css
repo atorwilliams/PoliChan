@@ -37,6 +37,84 @@ html.theme-red {
   --form-bg:     #f0e0d6;
 }
 
+/* Yotsuba: 4chan's classic warm theme. Cream page, tan replies, maroon text */
+html.theme-yotsuba {
+  --bg:           #ffffee;
+  --op-bg:        #f0e0d6;
+  --reply-bg:     #f0e0d6;
+  --nav-bg:       #af0a0f;
+  --nav-border:   #7a0000;
+  --border:       #d9bfb7;
+  --border-form:  #c0a090;
+  --text:         #800000;
+  --muted:        #997777;
+  --subject:      #cc1105;
+  --name:         #117743;
+  --tripcode:     #228854;
+  --quotelink:    #dd0000;
+  --link:         #0000ee;
+  --red:          #af0a0f;
+  --red-dark:     #800000;
+  --form-lbl:     #ea8c7f;
+  --form-lbl-c:   #800000;
+  --form-bg:      #f0e0d6;
+}
+
+/* Yotsuba B: 4chan's cool worksafe theme. The default green already borrows
+   these surfaces; this variant swaps the green chrome for the classic navy */
+html.theme-yotsuba-b {
+  --op-bg:        #d6daf0;
+  --nav-bg:       #4a5a94;
+  --nav-border:   #2f3b66;
+  --border-form:  #b7c5d9;
+  --name:         #117743;
+  --tripcode:     #228854;
+  --quotelink:    #dd0000;
+  --red:          #4a5a94;
+  --red-dark:     #0f0c5d;
+  --form-lbl:     #b7c5d9;
+  --form-lbl-c:   #0f0c5d;
+  --form-bg:      #e2e7f5;
+}
+
+/* Tomorrow: 4chan's dark theme */
+html.theme-tomorrow {
+  --bg:           #1d1f21;
+  --op-bg:        #282a2e;
+  --reply-bg:     #282a2e;
+  --nav-bg:       #282a2e;
+  --nav-border:   #111213;
+  --border:       #373b41;
+  --border-form:  #373b41;
+  --text:         #c5c8c6;
+  --muted:        #81858c;
+  --subject:      #b294bb;
+  --name:         #b5bd68;
+  --tripcode:     #b5bd68;
+  --quotelink:    #5f89ac;
+  --greentext:    #b5bd68;
+  --link:         #81a2be;
+  --red:          #cc6666;
+  --red-dark:     #cc6666;
+  --gold:         #f0c674;
+  --form-lbl:     #373b41;
+  --form-lbl-c:   #c5c8c6;
+  --form-bg:      #282a2e;
+}
+
+/* Dark-theme fixups: hairlines and hovers that assume a light page */
+html.theme-tomorrow .reply-container       { border-top-color: rgba(255,255,255,0.08); }
+html.theme-tomorrow .board-list-row        { border-bottom-color: rgba(255,255,255,0.08); }
+html.theme-tomorrow .board-list-row:hover  { background: rgba(255,255,255,0.05); }
+html.theme-tomorrow .index-box-body        { background: #282a2e; }
+html.theme-tomorrow table.post-form input[type="text"],
+html.theme-tomorrow table.post-form textarea,
+html.theme-tomorrow table.post-form select {
+  background: #1d1f21;
+  border-color: #373b41;
+  color: #c5c8c6;
+}
+
 html {
   font-size: 15px;
   font-family: arial, helvetica, sans-serif;
@@ -121,6 +199,19 @@ a:hover { color: var(--quotelink); }
 }
 #walletBtn:hover    { background: rgba(255,255,255,0.25); }
 #walletBtn.connected { color: #aaffaa; border-color: rgba(170,255,170,0.4); }
+
+#theme-select {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 3px 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#theme-select:hover { background: rgba(255,255,255,0.25); }
+#theme-select option { background: var(--bg); color: var(--text); }
 
 .polipass-badge {
   font-size: 0.72rem;
@@ -475,6 +566,41 @@ table.post-form input[type="button"]:hover,
   padding: 8px 10px;
   margin-bottom: 6px;
   overflow: hidden; /* clearfix */
+}
+
+/* Thread view mirrors the board index layout: the OP's file floats at
+   thread level (.op-media-wrap is display:contents so the .post-file float
+   escapes into .thread-view), the OP text sits unboxed beside it, and
+   replies flow beside the image, wrapping underneath once past it. */
+.op-media-wrap { display: contents; }
+/* Shrink the float to the image so a long filename wraps instead of
+   widening the gap between the image and the OP text */
+.op-media-wrap .post-file { width: min-content; }
+.op-media-wrap .post-file.expanded { width: auto; }
+.thread-view { overflow: hidden; } /* contain the OP float above the reply form */
+.thread-view .post.op {
+  background: none;
+  padding: 0;
+  margin-bottom: 4px;
+}
+.thread-view .reply-container {
+  clear: none;
+  display: flow-root; /* BFC: box narrows beside the float, border stays clear of it */
+}
+
+/* Bottom bar under the thread: Top / Return to Catalog / Update / Auto.
+   Right-aligned so it never sits under the fixed Top/Bottom scroll buttons */
+.thread-bottom-bar {
+  clear: both;
+  margin: 10px 0 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: right;
+}
+#tb-status {
+  margin-left: 8px;
+  font-size: 0.78rem;
+  color: var(--quotelink);
 }
 
 /* Reply posts */

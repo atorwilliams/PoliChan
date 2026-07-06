@@ -1,9 +1,12 @@
 'use strict';
 
-// Apply saved theme immediately to avoid flash
+// Apply saved theme immediately to avoid flash. 'green' is the bare
+// :root palette; every other theme is a html.theme-<name> class that
+// overrides the CSS variables.
+const THEMES = ['green', 'red', 'yotsuba', 'yotsuba-b', 'tomorrow'];
 (function () {
   const t = localStorage.getItem('theme') || 'green';
-  if (t === 'red') document.documentElement.classList.add('theme-red');
+  if (THEMES.includes(t) && t !== 'green') document.documentElement.classList.add('theme-' + t);
 })();
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -19,6 +22,12 @@ const state = {
 
 let _socket     = null;
 let _socketRoom = null;
+
+// Live-update controls for the thread bottom bar. Auto-update is on by
+// default (posts stream in over the socket); when off, incoming posts are
+// buffered and the bar shows how many are waiting for a manual Update.
+let _autoUpdate   = localStorage.getItem('autoUpdate') !== 'off';
+let _pendingPosts = [];
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -232,7 +241,13 @@ function renderNav(activePath) {
         ? session.boardRoles.map(r => `<a class="nav-role-badge" href="/manage/${esc(r.boardUri)}" title="Open the /${esc(r.boardUri)}/ moderation panel">${r.role === 'janitor' ? 'Janitor' : 'Mod'} /${esc(r.boardUri)}/</a>`).join('')
         : ''}
       <button id="walletBtn" class="${session?.authenticated ? 'connected' : ''}">${walletLabel}</button>
-      <button id="theme-toggle" onclick="toggleTheme()" title="Switch theme" style="width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);cursor:pointer;padding:0;flex-shrink:0"></button>
+      <select id="theme-select" title="Style" onchange="setTheme(this.value)">
+        <option value="green">Green</option>
+        <option value="red">Red</option>
+        <option value="yotsuba">Yotsuba</option>
+        <option value="yotsuba-b">Yotsuba B</option>
+        <option value="tomorrow">Tomorrow</option>
+      </select>
       <button id="nav-toggle" aria-label="Menu" onclick="toggleNavMenu()">☰</button>
     </div>
   `;
@@ -250,25 +265,24 @@ function closeNavMenu() {
   document.getElementById('nav-links')?.classList.remove('open');
 }
 
-// ── Theme toggle ──────────────────────────────────────────────────────────────
+// ── Theme picker ──────────────────────────────────────────────────────────────
 
 function getTheme() {
-  return localStorage.getItem('theme') || 'green';
+  const t = localStorage.getItem('theme') || 'green';
+  return THEMES.includes(t) ? t : 'green';
 }
 
 function applyTheme(theme) {
-  document.documentElement.classList.toggle('theme-red', theme === 'red');
-  const btn = document.getElementById('theme-toggle');
-  if (btn) {
-    btn.title = theme === 'green' ? 'Switch to red theme' : 'Switch to green theme';
-    btn.style.background = theme === 'green' ? '#af0a0f' : '#2d8a2d';
+  for (const t of THEMES) {
+    document.documentElement.classList.toggle('theme-' + t, t === theme && t !== 'green');
   }
+  const sel = document.getElementById('theme-select');
+  if (sel) sel.value = theme;
 }
 
-function toggleTheme() {
-  const next = getTheme() === 'green' ? 'red' : 'green';
-  localStorage.setItem('theme', next);
-  applyTheme(next);
+function setTheme(theme) {
+  localStorage.setItem('theme', theme);
+  applyTheme(theme);
 }
 
 // ── Wallet / Auth ─────────────────────────────────────────────────────────────
@@ -644,19 +658,22 @@ function updateWatchedIndicator() {
 }
 
 function togglePostHide(id) {
-  const wrap = document.getElementById('ph-' + id);
-  const post = document.getElementById('p' + id);
+  const wrap  = document.getElementById('ph-' + id);
+  const post  = document.getElementById('p' + id);
+  const media = document.getElementById('pm-' + id);  // OP media floats outside the post box
   if (!wrap || !post) return;
   if (_hiddenPosts.has(String(id))) {
     _hiddenPosts.delete(String(id));
     _saveHidden();
     wrap.style.display = 'none';
     post.style.display = '';
+    if (media) media.style.display = '';
   } else {
     _hiddenPosts.add(String(id));
     _saveHidden();
     wrap.style.display = 'flex';
     post.style.display = 'none';
+    if (media) media.style.display = 'none';
   }
 }
 
@@ -1183,6 +1200,13 @@ async function loadThread(boardUri, threadId) {
             + (injectAd ? '<div id="sp-thread-mid" class="thread-mid-ad"></div>' : '');
         }).join('')}
       </div>
+      <div class="thread-bottom-bar">
+        [<a class="post-action" onclick="window.scrollTo({top:0,behavior:'smooth'})">Top</a>]
+        [<a class="post-action" onclick="returnToCatalog('${boardUri}')">Return to Catalog</a>]
+        [<a class="post-action" id="tb-update" onclick="updateThreadNow()">Update</a>]
+        [<a class="post-action" id="tb-auto" onclick="toggleAutoUpdate()">Auto: ${_autoUpdate ? 'On' : 'Off'}</a>]
+        <span id="tb-status"></span>
+      </div>
       <div class="divider"></div>
       ${thread.isLocked
         ? '<div class="empty-state" style="padding:20px 0">Thread is locked.</div>'
@@ -1218,30 +1242,90 @@ async function loadThread(boardUri, threadId) {
       }
       if (_socketRoom) _socket.emit('leave-thread', _socketRoom);
       _socketRoom = { boardUri, threadId };
+      _pendingPosts = [];
       _socket.emit('join-thread', { boardUri, threadId });
       _socket.off('new-post');
       _socket.on('new-post', (post) => {
-        const tv = document.querySelector('.thread-view');
-        if (tv) tv.insertAdjacentHTML('beforeend', renderPost(post, boardUri, false));
-        // Update backlinks label on quoted posts
-        const pid = post.postId;
-        for (const qid of (post.quotes || [])) {
-          const blSpan = document.getElementById('bl-' + qid);
-          if (!blSpan) continue;
-          const existing = blSpan.dataset.pids ? blSpan.dataset.pids.split(',').filter(Boolean) : [];
-          existing.push(String(pid));
-          blSpan.dataset.pids = existing.join(',');
-          blSpan.textContent = existing.length === 1 ? '1 reply' : `${existing.length} replies`;
-          blSpan.onmouseenter = (e) => schedulePostPreview(e, blSpan);
-          blSpan.onmouseleave = () => cancelPostPreview();
-          blSpan.onclick = (e) => clickBacklinks(e, blSpan);
+        if (!_autoUpdate) {
+          _pendingPosts.push(post);
+          setThreadStatus(`${_pendingPosts.length} new post${_pendingPosts.length === 1 ? '' : 's'} waiting`);
+          return;
         }
+        appendLivePost(post, boardUri);
       });
     }
 
   } catch (e) {
     app.innerHTML = `<div class="empty-state">Failed to load thread: ${e.message}</div>`;
   }
+}
+
+// ── Thread bottom bar: update / auto-update controls ─────────────────────────
+
+// Append one post to the open thread and bump the backlink badges it quotes.
+// Used by both the live socket stream and the manual Update button.
+function appendLivePost(post, boardUri) {
+  if (document.getElementById('p' + post.postId)) return;  // already rendered
+  const tv = document.querySelector('.thread-view');
+  if (!tv) return;
+  tv.insertAdjacentHTML('beforeend', renderPost(post, boardUri, false));
+  const pid = post.postId;
+  for (const qid of (post.quotes || [])) {
+    const blSpan = document.getElementById('bl-' + qid);
+    if (!blSpan) continue;
+    const existing = blSpan.dataset.pids ? blSpan.dataset.pids.split(',').filter(Boolean) : [];
+    if (existing.includes(String(pid))) continue;
+    existing.push(String(pid));
+    blSpan.dataset.pids = existing.join(',');
+    blSpan.textContent = existing.length === 1 ? '1 reply' : `${existing.length} replies`;
+    blSpan.onmouseenter = (e) => schedulePostPreview(e, blSpan);
+    blSpan.onmouseleave = () => cancelPostPreview();
+    blSpan.onclick = (e) => clickBacklinks(e, blSpan);
+  }
+}
+
+function setThreadStatus(msg) {
+  const el = document.getElementById('tb-status');
+  if (el) el.textContent = msg;
+}
+
+function toggleAutoUpdate() {
+  _autoUpdate = !_autoUpdate;
+  localStorage.setItem('autoUpdate', _autoUpdate ? 'on' : 'off');
+  const btn = document.getElementById('tb-auto');
+  if (btn) btn.textContent = 'Auto: ' + (_autoUpdate ? 'On' : 'Off');
+  if (_autoUpdate && _pendingPosts.length && _socketRoom) {
+    for (const p of _pendingPosts.splice(0)) appendLivePost(p, _socketRoom.boardUri);
+    setThreadStatus('');
+  }
+}
+
+// Manual update: refetch the thread from the API, so it also catches posts
+// missed while the socket was disconnected.
+async function updateThreadNow() {
+  if (!_socketRoom) return;
+  const { boardUri, threadId } = _socketRoom;
+  const btn = document.getElementById('tb-update');
+  if (btn) btn.textContent = 'Updating...';
+  try {
+    const { posts } = await api.get('/posts/' + boardUri + '/' + threadId);
+    _pendingPosts = [];
+    let added = 0;
+    for (const p of posts) {
+      if (!document.getElementById('p' + p.postId)) { appendLivePost(p, boardUri); added++; }
+    }
+    setThreadStatus(added ? `${added} new post${added === 1 ? '' : 's'}` : 'No new posts');
+    setTimeout(() => setThreadStatus(''), 3000);
+  } catch (e) {
+    setThreadStatus('Update failed');
+  }
+  if (btn) btn.textContent = 'Update';
+}
+
+function returnToCatalog(uri) {
+  state.boardView = 'catalog';
+  localStorage.setItem('boardView', 'catalog');
+  navigate('/' + uri + '/');
 }
 
 // Global staff moderate everywhere; board mods only on their own boards.
@@ -1315,13 +1399,21 @@ function renderPost(post, boardUri, isOp, backlinks) {
     '$1<span class="you-tag"> (You)</span>'
   );
 
+  // In thread view the OP's file floats at thread level (outside the OP box),
+  // like .index-img-float on the board index, so replies flow beside the
+  // image and wrap underneath once past it. Reply media stays inside its post.
+  const opMediaHtml = (isOp && mediaHtml)
+    ? `<div class="op-media-wrap" id="pm-${id}" style="${isHidden ? 'display:none' : ''}">${mediaHtml}</div>`
+    : '';
+
   const postEl = `
     <div id="ph-${id}" class="post-hidden-bar" style="display:${isHidden ? 'flex' : 'none'}">
       <span class="post-hidden-label">Post hidden</span>
       <a href="#" onclick="togglePostHide(${id});return false" class="post-action">[Show]</a>
     </div>
+    ${opMediaHtml}
     <div class="post ${isOp ? 'op' : 'reply'} ${post.isModPost ? 'mod-post' : ''}" id="p${id}" style="${isHidden ? 'display:none' : ''}">
-      ${mediaHtml}
+      ${isOp ? '' : mediaHtml}
       <div class="postInfo">
         ${subjectHtml}<span class="post-name">${esc(post.name || 'Anonymous')}</span>${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
         <span class="post-date">${formatDate(post.createdAt)}</span>

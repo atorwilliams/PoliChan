@@ -219,6 +219,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       flairBgColor: post.flairBgColor || null,
       isModPost:   post.isModPost,
       media:       post.media || null,
+      quotes:      post.quotes || [],
       createdAt:   post.createdAt
     });
 
