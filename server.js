@@ -220,10 +220,12 @@ app.get('/api/press', async (_req, res) => {
 app.get('/api/banners/:boardUri', async (req, res) => {
   try {
     const Banner = require('./models/Banner');
+    const SiteConfig = require('./models/SiteConfig');
     const banners = await Banner.find({
       $or: [{ boardUri: req.params.boardUri }, { isGlobal: true }]
     }).lean();
-    res.json({ banners: banners.map(b => ({
+    const cfg = await SiteConfig.findOne({ key: 'bannerRotationSeconds' }).lean();
+    res.json({ rotationSeconds: parseInt(cfg?.value) || 30, banners: banners.map(b => ({
       _id:      b._id,
       isGlobal: b.isGlobal,
       url: b.isGlobal

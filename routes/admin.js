@@ -1190,7 +1190,26 @@ const BANNER_ROOT = path.join(__dirname, '../public/uploads/banners');
 router.get('/api/banners', requireAdmin, async (req, res) => {
   try {
     const banners = await Banner.find().sort({ createdAt: -1 }).lean();
-    res.json({ banners });
+    const cfg = await SiteConfig.findOne({ key: 'bannerRotationSeconds' }).lean();
+    res.json({ banners, rotationSeconds: parseInt(cfg?.value) || 30 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rotation interval for the on-site banner cycler (seconds)
+router.patch('/api/banners/rotation', requireAdmin, async (req, res) => {
+  try {
+    const seconds = parseInt(req.body.seconds);
+    if (!Number.isInteger(seconds) || seconds < 5 || seconds > 3600) {
+      return res.status(400).json({ error: 'seconds must be between 5 and 3600' });
+    }
+    await SiteConfig.findOneAndUpdate(
+      { key: 'bannerRotationSeconds' },
+      { value: String(seconds) },
+      { upsert: true }
+    );
+    res.json({ ok: true, rotationSeconds: seconds });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

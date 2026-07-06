@@ -470,10 +470,12 @@ let _globalBanners  = [], _globalIdx  = 0, _globalTimer  = null;
 let _boardBanners   = [], _boardIdx   = 0, _boardTimer   = null;
 
 async function loadBanners(uri) {
+  let rotateMs = 30000;
   try {
-    const { banners } = await api.get('/banners/' + uri);
+    const { banners, rotationSeconds } = await api.get('/banners/' + uri);
     _globalBanners = (banners || []).filter(b => b.isGlobal);
     _boardBanners  = (banners || []).filter(b => !b.isGlobal);
+    if (rotationSeconds > 0) rotateMs = rotationSeconds * 1000;
   } catch (_) {
     _globalBanners = [];
     _boardBanners  = [];
@@ -492,13 +494,13 @@ async function loadBanners(uri) {
     _globalTimer = setInterval(() => {
       _globalIdx = (_globalIdx + 1) % _globalBanners.length;
       renderGlobalBanner();
-    }, 30000);
+    }, rotateMs);
   }
   if (_boardBanners.length > 1) {
     _boardTimer = setInterval(() => {
       _boardIdx = (_boardIdx + 1) % _boardBanners.length;
       renderBoardBanner();
-    }, 30000);
+    }, rotateMs);
   }
 }
 
@@ -762,6 +764,30 @@ async function loadIndexStats() {
   }
 }
 
+// Board pages: slim dismissable bar under the breadcrumb.
+// The endpoint returns board-specific + global announcements.
+async function loadBoardAnnouncements(uri) {
+  const wrap = document.getElementById('board-announcements');
+  if (!wrap) return;
+
+  try {
+    const { announcements } = await api.get('/announcements/' + uri);
+    const visible = announcements.filter(a => !_dismissed.has(a._id));
+    if (!visible.length) return;
+
+    wrap.innerHTML = visible.map(a => `<div class="board-ann" data-id="${a._id}">
+      <span class="board-ann-text">${esc(a.text)}</span>
+      <button class="board-ann-x" title="Dismiss" onclick="dismissBoardAnn('${a._id}')">&times;</button>
+    </div>`).join('');
+  } catch (_) {}
+}
+
+function dismissBoardAnn(id) {
+  _dismissed.add(id);
+  localStorage.setItem('dismissed_announcements', JSON.stringify([..._dismissed]));
+  document.querySelector(`.board-ann[data-id="${id}"]`)?.remove();
+}
+
 function dismissAnnouncement(id) {
   _dismissed.add(id);
   localStorage.setItem('dismissed_announcements', JSON.stringify([..._dismissed]));
@@ -796,6 +822,8 @@ async function loadBoard(uri) {
         <span class="sep">›</span>
         <span>/${esc(board.uri)}/</span>
       </div>
+
+      <div id="board-announcements"></div>
 
       <div class="board-header">
         <div class="board-header-top">
@@ -851,6 +879,7 @@ async function loadBoard(uri) {
       </div>`;
 
     renderBoardContent(threads, board, uri);
+    loadBoardAnnouncements(uri);
     loadBanners(uri);
     loadAds(uri);
   } catch (e) {
@@ -945,7 +974,7 @@ function catalogCard(t, boardUri) {
 
   const badges = [
     t.isPinned   ? '<span class="badge-pinned">📌 Pinned</span>'     : '',
-    t.isLocked   ? '<span class="badge-locked">🔒 Locked</span>'    : '',
+    t.isLocked   ? '<span class="badge-locked" title="Locked">🔒</span>'    : '',
     t.bumpLimit  ? '<span class="badge-bump-limit">Bump limit</span>' : '',
     t.removedReason ? `<span class="badge-removed" title="${esc(t.removedReason)}">Removed by staff</span>` : ''
   ].filter(Boolean).join(' ');
@@ -985,7 +1014,7 @@ function renderIndexThreads(threads, uri) {
     const imgHtml = t.media?.thumbName
       ? `<div class="index-img-float">
           <div class="file-info">File: <a href="/uploads/${uri}/${t.media.storedName}" target="_blank">${esc(t.media.originalName || t.media.storedName)}</a> (${t.media.size ? Math.round(t.media.size/1024)+' KB' : ''})</div>
-          <img src="/uploads/${uri}/${t.media.thumbName}" data-full="/uploads/${uri}/${t.media.storedName}" data-type="${esc(t.media.type || '')}" onclick="expandMedia(this)" loading="lazy">
+          <img src="/uploads/${uri}/${t.media.thumbName}" data-full="/uploads/${uri}/${t.media.storedName}" data-type="${esc(t.media.type || '')}" ${thumbSizeAttrs(t.media, 300)} onclick="expandMedia(this)" loading="lazy">
         </div>`
       : '';
 
@@ -1588,6 +1617,10 @@ function renderMedia(media, boardUri) {
   const kb    = media.size ? Math.round(media.size / 1024) + ' KB' : '';
   const dims  = (media.width && media.height) ? `, ${media.width}x${media.height}` : '';
   const info  = `File: <a href="${src}" target="_blank">${name}</a> (${kb}${dims})`;
+  // Explicit display dimensions so lazy-loaded thumbs reserve their real
+  // space up front; without them the post lays out against a placeholder
+  // and the late image load leaves the body text clipping into the float.
+  const sizeAttrs = thumbSizeAttrs(media, 300);
 
   // 4chan layout: the File: line is its own full-width block; only the
   // thumbnail floats, so the body sits beside it
@@ -1604,8 +1637,16 @@ function renderMedia(media, boardUri) {
   }
   return `<div class="file-info">${info}</div>
   <div class="post-file">
-    <img src="${thumb}" data-full="${src}" onclick="expandImage(this)" loading="lazy">
+    <img src="${thumb}" data-full="${src}" ${sizeAttrs} onclick="expandImage(this)" loading="lazy">
   </div>`;
+}
+
+// width/height attributes for a thumbnail scaled to fit maxPx, from the
+// full image's stored dimensions (thumbs preserve aspect ratio)
+function thumbSizeAttrs(media, maxPx) {
+  if (!media.width || !media.height) return '';
+  const s = Math.min(maxPx / media.width, maxPx / media.height, 1);
+  return `width="${Math.round(media.width * s)}" height="${Math.round(media.height * s)}"`;
 }
 
 function renderPoll(poll, boardUri, threadId) {

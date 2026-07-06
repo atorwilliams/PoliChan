@@ -614,13 +614,13 @@ table.post-form input[type="button"]:hover,
 .post.reply {
   background: var(--reply-bg);
   padding: 5px 8px;
-  margin-left: 20px;
   display: inline-block;
-  max-width: calc(100% - 20px);
+  max-width: 100%;
   overflow: hidden;
 }
 
-.post.mod-post { border-left: 3px solid var(--gold); }
+/* Mod posts are identified by the "## Mod" capcode in the name line;
+   no extra border, it read as a stray gold bar next to every staff post */
 
 /* Post info line */
 .postInfo {
@@ -752,12 +752,14 @@ table.post-form input[type="button"]:hover,
 .badge-locked    { color: var(--muted); font-size: 0.8rem; }
 .badge-bump-limit { color: var(--quotelink); font-size: 0.8rem; }
 
-/* File / media */
+/* File / media. No max-width here: a percentage cap inside shrink-to-fit
+   reply boxes shrinks the float below the img's own 300px cap, so the image
+   overflows the float and bleeds under the post text. The img rules cap
+   actual size; mobile overrides handle small screens. */
 .post-file {
   float: left;
   margin: 0 14px 6px 0;
   text-align: center;
-  max-width: 50%;
 }
 
 .file-info {
@@ -778,6 +780,15 @@ table.post-form input[type="button"]:hover,
   border: 1px solid var(--border);
   object-fit: contain;
 }
+
+/* Thumbs carry explicit width/height attrs (layout reservation for lazy
+   loading); height:auto keeps aspect when CSS clamps the width, and
+   expansion releases the attrs entirely */
+.post-file img,
+.index-img-float img { height: auto; }
+.post-file.expanded img,
+.index-img-float.expanded img,
+img.expanded { width: auto; height: auto; }
 
 .post-file.expanded {
   float: none;
@@ -825,12 +836,14 @@ img.expanded {
   max-height: none;
 }
 
-/* Post body */
+/* Post body. No overflow:hidden here: a BFC beside the floated thumbnail
+   triggers a Chrome mis-layout inside shrink-to-fit reply boxes (text
+   overlapping the image). Plain line boxes shorten around the float and
+   wrap under it, 4chan-style. */
 .postMessage {
   font-size: 0.88rem;
   line-height: 1.55;
   word-break: break-word;
-  overflow: hidden;
   display: block;
 }
 
@@ -1182,6 +1195,30 @@ hr.index-divider {
   cursor: pointer;
 }
 .ann-dismiss:hover { color: var(--text); }
+
+/* Board-page announcement bar (board-specific + global), dismissable */
+.board-ann {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--reply-bg);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.board-ann-text { flex: 1; min-width: 0; }
+.board-ann-x {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.board-ann-x:hover { color: var(--text); }
 
 .breadcrumb {
   font-size: 0.8rem;
@@ -1549,8 +1586,8 @@ hr.index-divider {
   table.post-form tr:last-child td { border-bottom: none; }
 
   /* ── Posts ── */
-  .post.reply { margin-left: 6px; max-width: calc(100% - 6px); }
-  .post-file { max-width: 38%; }
+  /* img size cap below is what constrains the float; a % cap here would
+     let the img overflow the float in narrow posts */
   .post-file img, .post-file video { max-width: 110px; max-height: 110px; }
 
   /* ── Catalog: 2-column, show excerpt always ── */
