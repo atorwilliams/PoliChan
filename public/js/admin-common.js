@@ -22,6 +22,7 @@ function adminNav(active) {
     { href: '/admin/ads',             label: 'Ads'             },
     { href: '/admin/country-flairs',  label: 'Country Flairs'  },
     { href: '/admin/constitution',    label: 'Constitution'    },
+    { href: '/admin/changelog',       label: 'Changelog'       },
     { href: '/admin/danger',        label: '⚠ Danger',  danger: true }
   ];
 

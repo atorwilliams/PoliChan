@@ -1449,7 +1449,6 @@ function renderPost(post, boardUri, isOp, backlinks) {
     </div>
     ${opMediaHtml}
     <div class="post ${isOp ? 'op' : 'reply'} ${post.isModPost ? 'mod-post' : ''}" id="p${id}" data-poster-id="${post.posterId || ''}" style="${isHidden ? 'display:none' : ''}">
-      ${isOp ? '' : mediaHtml}
       <div class="postInfo">
         ${subjectHtml}<span class="post-name">${esc(post.name || 'Anonymous')}</span>${idHtml}${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
         <span class="post-date">${formatDate(post.createdAt)}</span>
@@ -1458,6 +1457,7 @@ function renderPost(post, boardUri, isOp, backlinks) {
         ${badges}
         ${backlinksHtml}
       </div>
+      ${isOp ? '' : mediaHtml}
       <blockquote class="postMessage">${bodyHtml}</blockquote>
       ${isOp && post.poll ? renderPoll(post.poll, boardUri, post.threadId) : ''}
       <div class="post-footer">
@@ -1589,10 +1589,12 @@ function renderMedia(media, boardUri) {
   const dims  = (media.width && media.height) ? `, ${media.width}x${media.height}` : '';
   const info  = `File: <a href="${src}" target="_blank">${name}</a> (${kb}${dims})`;
 
+  // 4chan layout: the File: line is its own full-width block; only the
+  // thumbnail floats, so the body sits beside it
   if (media.type === 'webm' || media.type === 'mp4') {
     const uid = Math.random().toString(36).slice(2, 8);
-    return `<div class="post-file" id="pf-${uid}">
-      <div class="file-info">${info}</div>
+    return `<div class="file-info">${info}</div>
+    <div class="post-file" id="pf-${uid}">
       <video id="v-${uid}" src="${src}" poster="${thumb}" controls loop preload="metadata"></video>
       <div class="video-controls">
         <button class="vid-btn" onclick="toggleVideoExpand('pf-${uid}')">&#x26F6; Expand</button>
@@ -1600,8 +1602,8 @@ function renderMedia(media, boardUri) {
       </div>
     </div>`;
   }
-  return `<div class="post-file">
-    <div class="file-info">${info}</div>
+  return `<div class="file-info">${info}</div>
+  <div class="post-file">
     <img src="${thumb}" data-full="${src}" onclick="expandImage(this)" loading="lazy">
   </div>`;
 }

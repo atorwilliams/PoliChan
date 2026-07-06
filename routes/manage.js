@@ -11,6 +11,9 @@ const markup   = require('../services/markup');
 const ipHash   = require('../services/ipHash');
 const { requireBoardMod } = require('../middleware/auth');
 
+// Record successful board-mod panel actions for the admin Changelog page
+router.use(require('../services/auditLog').middleware('manage'));
+
 // Helper: check if session has board-mod access to a given boardUri
 function hasBoardAccess(session, boardUri) {
   if (!session) return false;

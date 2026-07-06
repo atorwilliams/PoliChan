@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Changelog — Polichan Admin</title>
+  <link rel="stylesheet" href="/.static/css/admin.css">
+</head>
+<body>
+<div id="admin-nav"></div>
+<main>
+  <div class="page-header">
+    <h1>Changelog</h1>
+    <select id="days" onchange="load()" style="margin-left:auto">
+      <option value="7">Last 7 days</option>
+      <option value="14" selected>Last 14 days</option>
+      <option value="30">Last 30 days</option>
+      <option value="90">Last 90 days</option>
+    </select>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Staff actions <span id="count" style="color:var(--muted)"></span></div>
+    <div id="log"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+
+<script src="/.static/js/admin-common.js"></script>
+<script>
+  adminNav('/admin/changelog');
+
+  // Turn "POST /admin/api/boards" style entries into readable lines
+  function describe(e) {
+    const verb = { POST: 'changed', PUT: 'updated', DELETE: 'deleted' }[e.method] || e.method;
+    // Path-specific labels, most specific first
+    const RULES = [
+      [/\/soft-reset\/run/,        'ran the soft reset'],
+      [/\/soft-reset/,             e.method === 'DELETE' ? 'cancelled the timed soft reset' : 'scheduled a timed soft reset'],
+      [/\/wipe/,                   'NUCLEAR WIPE'],
+      [/\/delete\/thread/,         'deleted a thread'],
+      [/\/delete\/post/,           'deleted a post'],
+      [/\/threads\/.*\/remove/,    'removed a thread to the archive'],
+      [/\/posts\/.*\/remove/,      'removed a post'],
+      [/\/move\/thread/,           'moved a thread'],
+      [/\/pin/,                    'pinned/unpinned a thread'],
+      [/\/lock/,                   'locked/unlocked a thread'],
+      [/\/ban/,                    'issued a ban'],
+      [/\/bans\//,                 'lifted a ban'],
+      [/\/report\/resolve/,        'resolved a report'],
+      [/\/accounts.*assign/,       'assigned a staff role'],
+      [/\/accounts.*revoke/,       'revoked a staff role'],
+      [/\/boards/,                 e.method === 'DELETE' ? 'deleted a board' : 'created/edited a board'],
+      [/\/categories/,             'edited categories'],
+      [/\/wordfilter|\/word-filter/, 'edited the word filter'],
+      [/\/announcements/,          'edited announcements'],
+      [/\/banners/,                'edited banners'],
+      [/\/press/,                  'edited press releases'],
+      [/\/ads/,                    'edited ads'],
+      [/\/country-flairs/,         'edited country flairs'],
+      [/\/flairs/,                 'edited flairs'],
+      [/\/polls/,                  e.method === 'DELETE' ? 'deleted a poll' : 'created/edited a poll'],
+      [/\/constitution/,           'edited the constitution'],
+      [/\/verified/,               'edited verified sources'],
+      [/\/polipass/,               'edited PoliPass settings']
+    ];
+    for (const [re, label] of RULES) {
+      if (re.test(e.path)) return label;
+    }
+    return `${verb} ${e.path}`;
+  }
+
+  async function load() {
+    const days = document.getElementById('days').value;
+    const { entries } = await api('GET', '/admin/api/changelog?days=' + days);
+    document.getElementById('count').textContent = `(${entries.length})`;
+    const el = document.getElementById('log');
+    if (!entries.length) { el.innerHTML = '<div class="empty">No staff actions in this period</div>'; return; }
+
+    // Group by local day
+    const byDay = {};
+    for (const e of entries) {
+      const day = new Date(e.createdAt).toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      (byDay[day] = byDay[day] || []).push(e);
+    }
+
+    el.innerHTML = Object.entries(byDay).map(([day, list]) => `
+      <div style="padding:10px 14px 4px;font-weight:bold;border-bottom:1px solid var(--border);background:var(--panel-header,rgba(255,255,255,0.03))">${day}</div>
+      <table><tbody>
+        ${list.map(e => `<tr>
+          <td class="mono" style="white-space:nowrap;width:70px">${new Date(e.createdAt).toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit' })}</td>
+          <td style="white-space:nowrap;width:140px"><span class="mono">${esc(e.actorLabel)}</span> <span style="color:var(--muted);font-size:0.75rem">${esc(e.actorRole)}</span></td>
+          <td>${esc(describe(e))}${e.summary ? ` <span style="color:var(--muted)">— ${esc(e.summary)}</span>` : ''}</td>
+        </tr>`).join('')}
+      </tbody></table>
+    `).join('');
+  }
+
+  load();
+</script>
+</body>
+</html>

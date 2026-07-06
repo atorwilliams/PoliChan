@@ -91,6 +91,9 @@ router.post('/login', async (req, res) => {
 
 router.use(requireAdmin);
 
+// Record every successful admin mutation for the Changelog page
+router.use(require('../services/auditLog').middleware('admin'));
+
 const view = (name) => (req, res) =>
   res.sendFile(require('path').join(__dirname, `../views/admin/${name}.html`));
 
@@ -113,6 +116,22 @@ router.get('/categories',      view('categories'));
 router.get('/country-flairs',  view('country-flairs'));
 router.get('/polipass',        view('polipass'));
 router.get('/analytics',       view('analytics'));
+router.get('/changelog',       view('changelog'));
+
+// ── Changelog (staff action audit log) ────────────────────────────────────────
+
+router.get('/api/changelog', async (req, res) => {
+  try {
+    const AuditLog = require('../models/AuditLog');
+    const days = Math.min(Math.max(parseInt(req.query.days) || 14, 1), 180);
+    const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
+    const entries = await AuditLog.find({ createdAt: { $gte: cutoff } })
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .lean();
+    res.json({ entries, days });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── Country Flairs ────────────────────────────────────────────────────────────
 

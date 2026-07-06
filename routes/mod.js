@@ -15,6 +15,9 @@ const media = require('../services/media');
 
 const UPLOADS_ROOT = path.join(__dirname, '../public/uploads');
 
+// Record successful mod actions for the admin Changelog page
+router.use(require('../services/auditLog').middleware('mod'));
+
 // Global staff pass everything; board mods pass only for their own board
 // (boardUri comes from the request body on these routes).
 function requireBoardScope(req, res, next) {
