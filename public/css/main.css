@@ -587,6 +587,14 @@ table.post-form input[type="button"]:hover,
   clear: none;
   display: flow-root; /* BFC: box narrows beside the float, border stays clear of it */
 }
+/* Block, like index-view replies. Shrink-to-fit (inline-block) boxes size
+   unpredictably around a floated thumbnail and cram the text into a sliver
+   beside the image; a block box spans the row so text gets the full
+   remaining width and wraps under the float normally. */
+.thread-view .post.reply {
+  display: block;
+  max-width: 100%;
+}
 
 /* Bottom bar under the thread: Top / Return to Catalog / Update / Auto.
    Right-aligned so it never sits under the fixed Top/Bottom scroll buttons */
