@@ -18,6 +18,7 @@ const geoip        = require('../services/geoip');
 const CountryFlair = require('../models/CountryFlair');
 const config       = require('../config');
 const removal      = require('../services/removal');
+const posterIds    = require('../services/posterId');
 
 // GET /api/threads/:boardUri — thread list (catalog or index view)
 // ?preview=N  (1–5) attaches the last N replies as thread.lastPosts for index view
@@ -59,7 +60,16 @@ router.get('/:boardUri', async (req, res) => {
       }
     }
 
-    res.json({ board, threads });
+    // Strip ip hashes, attach per-thread poster IDs
+    const pub = threads.map(t => {
+      const scrubbed = posterIds.withPosterId(t, req.params.boardUri, t.threadId);
+      if (scrubbed.lastPosts) {
+        scrubbed.lastPosts = scrubbed.lastPosts.map(p => posterIds.withPosterId(p, req.params.boardUri, p.threadId));
+      }
+      return scrubbed;
+    });
+
+    res.json({ board, threads: pub });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -89,7 +99,11 @@ router.get('/:boardUri/archive', async (req, res) => {
       Thread.countDocuments({ boardUri: req.params.boardUri, isArchived: true })
     ]);
 
-    res.json({ board, threads, total, page, pages: Math.ceil(total / limit) });
+    res.json({
+      board,
+      threads: threads.map(t => posterIds.withPosterId(t, req.params.boardUri, t.threadId)),
+      total, page, pages: Math.ceil(total / limit)
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -111,7 +125,7 @@ router.get('/:boardUri/:threadId', async (req, res) => {
     }).lean();
 
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
-    res.json({ thread });
+    res.json({ thread: posterIds.withPosterId(thread, req.params.boardUri, thread.threadId) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -614,15 +614,18 @@ async function loadThreadMidAd(uri) {
 
 // ── User state (localStorage) ─────────────────────────────────────────────────
 
-const _yourPosts   = new Set(JSON.parse(localStorage.getItem('your_posts')   || '[]'));
-const _hiddenPosts = new Set(JSON.parse(localStorage.getItem('hidden_posts') || '[]'));
+// Keys are "boardUri:postId" — post numbers are only unique per board, so a
+// bare number would light up (You) on unrelated posts across boards. Entries
+// without a board prefix predate per-board numbering and are dropped.
+const _yourPosts   = new Set(JSON.parse(localStorage.getItem('your_posts')   || '[]').filter(k => String(k).includes(':')));
+const _hiddenPosts = new Set(JSON.parse(localStorage.getItem('hidden_posts') || '[]').filter(k => String(k).includes(':')));
 let   _watched     = JSON.parse(localStorage.getItem('watched_threads') || '{}');
 
 function _saveYours()   { localStorage.setItem('your_posts',      JSON.stringify([..._yourPosts])); }
 function _saveHidden()  { localStorage.setItem('hidden_posts',    JSON.stringify([..._hiddenPosts])); }
 function _saveWatched() { localStorage.setItem('watched_threads', JSON.stringify(_watched)); }
 
-function addYourPost(id) { _yourPosts.add(String(id)); _saveYours(); }
+function addYourPost(boardUri, id) { _yourPosts.add(`${boardUri}:${id}`); _saveYours(); }
 
 function watchThread(uri, threadId, title, replyCount) {
   _watched[`${uri}:${threadId}`] = { uri, threadId, title, seenCount: replyCount };
@@ -657,19 +660,20 @@ function updateWatchedIndicator() {
   }
 }
 
-function togglePostHide(id) {
+function togglePostHide(boardUri, id) {
   const wrap  = document.getElementById('ph-' + id);
   const post  = document.getElementById('p' + id);
   const media = document.getElementById('pm-' + id);  // OP media floats outside the post box
   if (!wrap || !post) return;
-  if (_hiddenPosts.has(String(id))) {
-    _hiddenPosts.delete(String(id));
+  const key = `${boardUri}:${id}`;
+  if (_hiddenPosts.has(key)) {
+    _hiddenPosts.delete(key);
     _saveHidden();
     wrap.style.display = 'none';
     post.style.display = '';
     if (media) media.style.display = '';
   } else {
-    _hiddenPosts.add(String(id));
+    _hiddenPosts.add(key);
     _saveHidden();
     wrap.style.display = 'flex';
     post.style.display = 'none';
@@ -1033,7 +1037,7 @@ function renderIndexOP(t, uri) {
   return `
     <div class="index-op-header ${t.isModPost ? 'mod-post' : ''}">
       <div class="postInfo">
-        ${subjectHtml}<span class="post-name">${esc(t.name || 'Anonymous')}</span>${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
+        ${subjectHtml}<span class="post-name">${esc(t.name || 'Anonymous')}</span>${posterIdChip(t)}${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
         <span class="post-date">${formatDate(t.createdAt)}</span>
         <span class="post-no">No.<a class="post-id" href="/${uri}/${id}" data-nav>${id}</a></span>
         <span class="post-reply-wrap">[<a class="post-inline-link" href="/${uri}/${id}" data-nav>Reply</a>]</span>
@@ -1139,7 +1143,7 @@ async function submitThread(boardUri) {
     if (document.getElementById('nt-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('nt-anon')?.checked) fields.postAnon = 'true';
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
-    addYourPost(threadId);
+    addYourPost(boardUri, threadId);
     watchThread(boardUri, threadId, subject || body.slice(0, 60), 0);
     navigate(`/${boardUri}/${threadId}`);
   } catch (e) {
@@ -1260,6 +1264,36 @@ async function loadThread(boardUri, threadId) {
   }
 }
 
+// ── Per-thread poster IDs ─────────────────────────────────────────────────────
+
+// Deterministic chip color from the ID string, 4chan-style
+function idColor(pid) {
+  let h = 0;
+  for (let i = 0; i < pid.length; i++) h = (h * 31 + pid.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const lig = 32 + (h >> 17) % 28;
+  return { bg: `hsl(${hue},55%,${lig}%)`, fg: lig > 50 ? '#000' : '#fff' };
+}
+
+function posterIdChip(post) {
+  if (!post.posterId || post.isModPost) return '';
+  const c = idColor(post.posterId);
+  return ` <span class="poster-id" style="background:${c.bg};color:${c.fg}" onclick="toggleIdHighlight('${post.posterId}')" title="Highlight this ID's posts in the thread">ID: ${post.posterId}</span>`;
+}
+
+let _hlPosterId = null;
+function toggleIdHighlight(pid) {
+  const on = _hlPosterId !== pid;
+  _hlPosterId = on ? pid : null;
+  let count = 0;
+  document.querySelectorAll('.post[data-poster-id]').forEach(el => {
+    const match = el.dataset.posterId === pid;
+    if (match) count++;
+    el.classList.toggle('id-hl', on && match);
+  });
+  if (on) toast(`${count} post${count === 1 ? '' : 's'} by ID ${pid} in this thread`);
+}
+
 // ── Thread bottom bar: update / auto-update controls ─────────────────────────
 
 // Append one post to the open thread and bump the backlink badges it quotes.
@@ -1368,6 +1402,7 @@ function renderPost(post, boardUri, isOp, backlinks) {
   const tripcodeHtml = post.tripcode ? `<span class="post-tripcode">!${esc(post.tripcode)}</span>` : '';
   const modHtml      = post.isModPost ? `<span class="post-mod-label"> ## Mod</span>` : '';
   const subjectHtml  = post.subject  ? `<span class="post-subject">${esc(post.subject)} </span>` : '';
+  const idHtml       = posterIdChip(post);
 
   const badges = [
     isOp && post.isPinned   ? '<span class="badge-pinned">[Pinned]</span>'      : '',
@@ -1387,13 +1422,14 @@ function renderPost(post, boardUri, isOp, backlinks) {
       })()
     : `<span class="post-backlinks" id="bl-${blId}"></span>`;
 
-  const isYou    = _yourPosts.has(String(id));
-  const isHidden = _hiddenPosts.has(String(id));
+  const isYou    = _yourPosts.has(`${boardUri}:${id}`);
+  const isHidden = _hiddenPosts.has(`${boardUri}:${id}`);
 
-  // Inject (You) into bodyHtml quotelinks
+  // Inject (You) into bodyHtml quotelinks (same-board quotes only; cross-board
+  // links use #xp anchors and never match)
   let bodyHtml = post.bodyHtml || esc(post.body);
   bodyHtml = bodyHtml.replace(/class="quotelink" href="[^"]*#p(\d+)"/g, (match, qid) =>
-    _yourPosts.has(qid) ? match.replace('class="quotelink"', 'class="quotelink you-quoted"') : match
+    _yourPosts.has(`${boardUri}:${qid}`) ? match.replace('class="quotelink"', 'class="quotelink you-quoted"') : match
   );
   bodyHtml = bodyHtml.replace(/(<a class="quotelink you-quoted"[^>]*>>(\d+)<\/a>)/g,
     '$1<span class="you-tag"> (You)</span>'
@@ -1409,13 +1445,13 @@ function renderPost(post, boardUri, isOp, backlinks) {
   const postEl = `
     <div id="ph-${id}" class="post-hidden-bar" style="display:${isHidden ? 'flex' : 'none'}">
       <span class="post-hidden-label">Post hidden</span>
-      <a href="#" onclick="togglePostHide(${id});return false" class="post-action">[Show]</a>
+      <a href="#" onclick="togglePostHide('${boardUri}',${id});return false" class="post-action">[Show]</a>
     </div>
     ${opMediaHtml}
-    <div class="post ${isOp ? 'op' : 'reply'} ${post.isModPost ? 'mod-post' : ''}" id="p${id}" style="${isHidden ? 'display:none' : ''}">
+    <div class="post ${isOp ? 'op' : 'reply'} ${post.isModPost ? 'mod-post' : ''}" id="p${id}" data-poster-id="${post.posterId || ''}" style="${isHidden ? 'display:none' : ''}">
       ${isOp ? '' : mediaHtml}
       <div class="postInfo">
-        ${subjectHtml}<span class="post-name">${esc(post.name || 'Anonymous')}</span>${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
+        ${subjectHtml}<span class="post-name">${esc(post.name || 'Anonymous')}</span>${idHtml}${tripcodeHtml}${modHtml}${flairHtml}${sourceHtml}
         <span class="post-date">${formatDate(post.createdAt)}</span>
         <span class="post-no">No.<a class="post-id" href="#p${id}" onclick="quotePost(${id},'${boardUri}',${post.threadId});return false">${id}</a>${isYou ? '<span class="you-tag"> (You)</span>' : ''}</span>
         ${isOp ? '<span class="post-reply-wrap">[<a class="post-inline-link" href="#rp-form" onclick="document.getElementById(\'rp-form-wrap\').style.display=\'block\';document.getElementById(\'rp-body\').focus();return false">Reply</a>]</span>' : ''}
@@ -1426,7 +1462,7 @@ function renderPost(post, boardUri, isOp, backlinks) {
       ${isOp && post.poll ? renderPoll(post.poll, boardUri, post.threadId) : ''}
       <div class="post-footer">
         [<a class="post-action" onclick="quotePost(${id},'${boardUri}',${post.threadId})">Reply</a>]
-        [<a class="post-action" onclick="togglePostHide(${id})">Hide</a>]
+        [<a class="post-action" onclick="togglePostHide('${boardUri}',${id})">Hide</a>]
         [<a class="post-action" onclick="reportPost('${boardUri}', ${post.threadId}, ${isOp ? 'null' : id})">Report</a>]
         ${canModBoard(boardUri)
           ? `<span class="mod-controls">
@@ -1855,7 +1891,7 @@ async function submitReply(boardUri, threadId) {
     if (document.getElementById('rp-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('rp-anon')?.checked) fields.postAnon = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
-    addYourPost(postId);
+    addYourPost(boardUri, postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {
@@ -1888,7 +1924,7 @@ async function submitQR(boardUri, threadId) {
     if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('qr-anon')?.checked) fields.postAnon = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
-    addYourPost(postId);
+    addYourPost(boardUri, postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
     navigate(`/${boardUri}/${threadId}#p${postId}`);
   } catch (e) {

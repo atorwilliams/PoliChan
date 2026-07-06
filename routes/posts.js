@@ -17,6 +17,7 @@ const geoip          = require('../services/geoip');
 const CountryFlair   = require('../models/CountryFlair');
 const config         = require('../config');
 const removal        = require('../services/removal');
+const posterIds      = require('../services/posterId');
 
 // GET /api/posts/find/:boardUri/:id — resolve a board-local post/thread ID
 // to its thread. IDs are per-board, so the board is required context.
@@ -61,7 +62,9 @@ router.get('/:boardUri/:threadId', async (req, res) => {
     const isStaff = removal.isStaffSession(req.session);
     const visible = isStaff ? posts : posts.map(p => p.isRemoved ? removal.stubPost(p) : p);
 
-    res.json({ posts: visible });
+    // Never expose the ip hash (it correlates a poster site-wide);
+    // serve the per-thread posterId instead.
+    res.json({ posts: visible.map(p => posterIds.withPosterId(p, req.params.boardUri, p.threadId)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -220,6 +223,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       isModPost:   post.isModPost,
       media:       post.media || null,
       quotes:      post.quotes || [],
+      posterId:    post.isModPost ? null : posterIds.posterId(ip, boardUri, threadId),
       createdAt:   post.createdAt
     });
 

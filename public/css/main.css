@@ -647,6 +647,17 @@ table.post-form input[type="button"]:hover,
   text-decoration: none;
   cursor: pointer;
 }
+
+/* Per-thread poster ID chip */
+.poster-id {
+  font-size: 0.7rem;
+  padding: 0 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.poster-id:hover { opacity: 0.8; }
+.post.id-hl { outline: 2px dashed var(--quotelink); }
 .post-id:hover { color: var(--quotelink); text-decoration: underline; }
 
 .post-inline-link {
