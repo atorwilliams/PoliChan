@@ -7,12 +7,39 @@ function cleanIp(ip) {
   return (ip || '').replace(/^::ffff:/, '');
 }
 
+// Manual corrections for ranges the bundled GeoLite2 data places wrongly.
+// Checked before the database. Add entries as users report misflags.
+// 38.0.0.0/8 is legacy Cogent space subleased in chunks; GeoLite2 lumps
+// much of it as "US, location unknown".
+const OVERRIDES = [
+  { cidr: '38.192.80.0/21', country: 'CA' }  // ViaNetTV Inc, Edmonton AB (ARIN NET-38-192-80-0-1)
+];
+
+function ipToInt(ip) {
+  const p = ip.split('.').map(Number);
+  if (p.length !== 4 || p.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
+}
+
+const _overrides = OVERRIDES.map(({ cidr, country }) => {
+  const [base, bits] = cidr.split('/');
+  const mask = (~0 << (32 - parseInt(bits))) >>> 0;
+  return { base: (ipToInt(base) & mask) >>> 0, mask, country };
+});
+
 /**
  * Return ISO 3166-1 alpha-2 country code for an IP, or null.
  * Returns null for private/loopback addresses (geoip-lite returns null for these).
  */
 function getCountry(ip) {
-  const geo = geoip.lookup(cleanIp(ip));
+  const clean = cleanIp(ip);
+  const n = ipToInt(clean);
+  if (n !== null) {
+    for (const o of _overrides) {
+      if (((n & o.mask) >>> 0) === o.base) return o.country;
+    }
+  }
+  const geo = geoip.lookup(clean);
   return geo?.country || null;  // 'CA', 'US', 'GB', etc. — uppercase
 }
 

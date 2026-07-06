@@ -99,13 +99,33 @@ app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 // Favicon + robots.txt
 app.get('/favicon.png', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.png')));
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.png')));
+// Search engines may index boards and threads. AI training crawlers and SEO
+// scrapers are blocked; /uploads is off-limits to everyone (keeps user media
+// out of image search and saves bandwidth). robots.txt is advisory — the
+// well-known bots below honor it, rogue scrapers need nginx/CF rules instead.
+const AI_TRAINING_BOTS = [
+  'GPTBot', 'ChatGPT-User', 'OAI-SearchBot',
+  'ClaudeBot', 'Claude-Web', 'anthropic-ai',
+  'CCBot', 'Google-Extended', 'Applebot-Extended',
+  'meta-externalagent', 'FacebookBot',
+  'Bytespider', 'PerplexityBot', 'Perplexity-User',
+  'cohere-ai', 'Diffbot', 'omgili', 'omgilibot', 'Timpibot'
+];
+const SEO_SCRAPER_BOTS = ['AhrefsBot', 'SemrushBot', 'MJ12bot', 'DotBot', 'DataForSeoBot'];
+
 app.get('/robots.txt', (req, res) => {
+  const blocked = [...AI_TRAINING_BOTS, ...SEO_SCRAPER_BOTS]
+    .map(ua => `User-agent: ${ua}\nDisallow: /`)
+    .join('\n\n');
   res.type('text/plain').send(
     'User-agent: *\n' +
     'Disallow: /manage\n' +
     'Disallow: /admin\n' +
     'Disallow: /api\n' +
-    'Allow: /\n' +
+    'Disallow: /uploads\n' +
+    '\n' +
+    blocked + '\n' +
+    '\n' +
     `Sitemap: ${req.protocol}://${req.get('host')}/sitemap.xml\n`
   );
 });
