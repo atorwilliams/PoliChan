@@ -71,20 +71,23 @@ async function processImage(file, boardUri) {
   const meta = await sharp(file.buffer).metadata();
   const { width, height } = meta;
 
+  // sharp strips all metadata (EXIF/XMP/IPTC — GPS, device serials, etc.)
+  // by default; .rotate() first bakes the EXIF orientation into the pixels
+  // so stripping it doesn't turn photos sideways. Never call .withMetadata()
+  // here — it would carry the input's metadata through to the output.
   if (ext === 'gif') {
-    // Write GIF directly and use it as its own thumbnail to preserve animation
-    await fs.promises.writeFile(storedPath, file.buffer);
+    // Re-encode (animated) rather than storing the original bytes, so GIF
+    // comment/XMP blocks are dropped; the file serves as its own thumbnail
+    await sharp(file.buffer, { animated: true }).gif().toFile(storedPath);
     await fs.promises.copyFile(storedPath, thumbPath);
   } else {
     await sharp(file.buffer)
       .rotate()
-      .withMetadata({ exif: {} })
       .toFile(storedPath);
 
     await sharp(file.buffer)
       .rotate()
       .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
-      .withMetadata({ exif: {} })
       .toFile(thumbPath);
   }
 
@@ -126,10 +129,24 @@ function extractFrame(srcPath, thumbPath) {
   });
 }
 
+// Strip container metadata (iPhones embed GPS in an mp4 metadata atom)
+// without touching the streams — copy remux, no quality loss.
+function remuxStripMetadata(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions(['-map_metadata', '-1', '-c', 'copy'])
+      .output(outputPath)
+      .on('end', resolve)
+      .on('error', reject)
+      .run();
+  });
+}
+
 function reencodeVideo(inputPath, outputPath) {
   return new Promise((resolve, reject) => {
     ffmpeg(inputPath)
       .outputOptions([
+        '-map_metadata', '-1',
         '-c:v', 'libx264',
         '-crf', '26',
         '-preset', 'fast',
@@ -166,7 +183,15 @@ async function processWebm(file, boardUri) {
   const storedPath = path.join(dir, storedName);
   const thumbPath  = path.join(dir, thumbName);
 
-  fs.writeFileSync(storedPath, file.buffer);
+  // Remux through ffmpeg (stream copy) instead of storing the original
+  // bytes, so container metadata is dropped
+  const tmpPath = path.join(dir, 't_' + storedName);
+  fs.writeFileSync(tmpPath, file.buffer);
+  try {
+    await remuxStripMetadata(tmpPath, storedPath);
+  } finally {
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+  }
 
   try {
     await extractFrame(storedPath, thumbPath);
