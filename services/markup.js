@@ -33,16 +33,30 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function applyWordFilter(str) {
+// Segments the word filter must never rewrite: URLs (the linkifier runs
+// after the filter and needs them byte-identical) and >>N / >>>/board/N
+// quote refs (a rule matching a number would corrupt the link).
+// Operates on escaped text, hence &gt; not >.
+const FILTER_SKIP_RE = /(https?:\/\/[^\s<>"]+|&gt;&gt;&gt;\/[a-z0-9-]+\/\d*|&gt;&gt;\d+)/g;
+
+function filterSegment(str) {
   let result = str;
   for (const { word, replacement } of _cache) {
     const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
     result = result.replace(regex,
-      replacement ? `<span class="word-filtered">${replacement}</span>` : ''
+      replacement ? `<span class="word-filtered">${escapeHtml(replacement)}</span>` : ''
     );
   }
   return result;
+}
+
+function applyWordFilter(str) {
+  // split on a capturing group: odd indices are the skipped segments
+  return str
+    .split(FILTER_SKIP_RE)
+    .map((part, i) => (i % 2 === 1 ? part : filterSegment(part)))
+    .join('');
 }
 
 // ── Embed detection ────────────────────────────────────────────────────────────
