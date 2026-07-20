@@ -2251,9 +2251,9 @@ async function modMoveThread(boardUri, threadId) {
     const errEl = document.getElementById('mod-move-error');
     errEl.textContent = '';
     try {
-      await api.post('/mod/move/thread', { boardUri, threadId, targetBoardUri });
+      const result = await api.post('/mod/move/thread', { boardUri, threadId, targetBoardUri });
       dialog.style.display = 'none';
-      navigate(`/${targetBoardUri}/${threadId}`);
+      navigate(`/${targetBoardUri}/${result.newThreadId}`);
     } catch (e) {
       errEl.textContent = e.message;
     }

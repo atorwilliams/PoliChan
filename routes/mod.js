@@ -11,7 +11,9 @@ const Report  = require('../models/Report');
 const ipHash  = require('../services/ipHash');
 const Board   = require('../models/Board');
 const { requireMod } = require('../middleware/auth');
-const media = require('../services/media');
+const media   = require('../services/media');
+const counter = require('../services/counter');
+const markup  = require('../services/markup');
 
 const UPLOADS_ROOT = path.join(__dirname, '../public/uploads');
 
@@ -160,19 +162,68 @@ router.post('/move/thread', requireMod, async (req, res) => {
       }
     }
 
-    await Thread.updateOne({ boardUri, threadId: parseInt(threadId) }, { boardUri: targetBoardUri });
-    await Post.updateMany({ boardUri, threadId: parseInt(threadId) }, { boardUri: targetBoardUri });
+    // threadId/postId are per-board sequences, so they can already be taken
+    // on targetBoardUri — renumber everything through the target's counter
+    // rather than carrying the source board's numbers over.
+    const oldThreadId = thread.threadId;
+    const newThreadId = await counter.nextId(targetBoardUri);
+    const idMap = { [oldThreadId]: newThreadId };
+    const newPostIdFor = new Map();
+    for (const p of posts) {
+      const newPostId = await counter.nextId(targetBoardUri);
+      idMap[p.postId] = newPostId;
+      newPostIdFor.set(p.postId, newPostId);
+    }
+
+    // >>N quote refs only make sense within the same thread, so only remap
+    // numbers that belong to this thread; anything else is left as-is.
+    const remapQuotes = body => body.replace(/>>(\d+)/g, (m, n) =>
+      idMap[n] !== undefined ? `>>${idMap[n]}` : m
+    );
+
+    const newThreadBody = remapQuotes(thread.body);
+    await Thread.updateOne(
+      { boardUri, threadId: oldThreadId },
+      {
+        boardUri: targetBoardUri,
+        threadId: newThreadId,
+        body: newThreadBody,
+        bodyHtml: await markup.process(newThreadBody)
+      }
+    );
+
+    for (const p of posts) {
+      const newBody = remapQuotes(p.body || '');
+      await Post.updateOne(
+        { boardUri, postId: p.postId },
+        {
+          boardUri: targetBoardUri,
+          threadId: newThreadId,
+          postId: newPostIdFor.get(p.postId),
+          body: newBody,
+          bodyHtml: await markup.process(newBody),
+          quotes: (p.quotes || []).map(q => idMap[q] !== undefined ? idMap[q] : q)
+        }
+      );
+    }
 
     await Board.updateOne({ uri: boardUri },       { $inc: { threadCount: -1, postCount: -replyCount } });
     await Board.updateOne({ uri: targetBoardUri }, { $inc: { threadCount:  1, postCount:  replyCount } });
 
-    // Keep open reports pointing at the thread's new home
-    await Report.updateMany(
-      { boardUri, threadId: parseInt(threadId), resolved: false },
-      { boardUri: targetBoardUri }
-    );
+    // Keep open reports pointing at the thread's new home and new numbers
+    const reports = await Report.find({ boardUri, threadId: oldThreadId, resolved: false }).lean();
+    for (const r of reports) {
+      await Report.updateOne(
+        { _id: r._id },
+        {
+          boardUri: targetBoardUri,
+          threadId: newThreadId,
+          postId: r.postId !== null && newPostIdFor.has(r.postId) ? newPostIdFor.get(r.postId) : r.postId
+        }
+      );
+    }
 
-    res.json({ ok: true });
+    res.json({ ok: true, newThreadId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
