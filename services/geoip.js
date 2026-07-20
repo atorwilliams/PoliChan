@@ -12,7 +12,8 @@ function cleanIp(ip) {
 // 38.0.0.0/8 is legacy Cogent space subleased in chunks; GeoLite2 lumps
 // much of it as "US, location unknown".
 const OVERRIDES = [
-  { cidr: '38.192.80.0/21', country: 'CA' }  // ViaNetTV Inc, Edmonton AB (ARIN NET-38-192-80-0-1)
+  { cidr: '38.192.80.0/21', country: 'CA' },  // ViaNetTV Inc, Edmonton AB (ARIN NET-38-192-80-0-1)
+  { cidr: '212.104.215.0/24', country: 'CA' } // PV-SL-HOSTED-Vancouver (RIPE), geoip-lite misflags as NL/Zwolle
 ];
 
 function ipToInt(ip) {
