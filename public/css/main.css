@@ -1125,6 +1125,9 @@ hr.index-divider {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0; /* grid items default to content-based min-width, which lets
+                   an unbroken long token (wallet address, URL) blow the
+                   card past its 1fr track width */
 }
 
 .catalog-card:hover { border-color: var(--link); }
@@ -1157,6 +1160,7 @@ hr.index-divider {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
 }
 
 .catalog-excerpt {
@@ -1167,6 +1171,7 @@ hr.index-divider {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
 }
 
 .catalog-meta {
