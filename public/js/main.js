@@ -2037,6 +2037,48 @@ function expandMedia(img) {
   }
 }
 
+// ── YouTube embeds ──────────────────────────────────────────────────────────────
+// Thumbnails render everywhere (see services/markup.js); clicking one opens an
+// in-page modal player on desktop, or just opens YouTube on mobile — a modal
+// iframe on a small screen is more annoying than useful, and the OS-level
+// YouTube app/tab handles it better there.
+
+function playYouTubeEmbed(event, id) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const isDesktop = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 768;
+  if (!isDesktop) {
+    window.open(`https://www.youtube.com/watch?v=${id}`, '_blank', 'noopener');
+    return;
+  }
+
+  document.getElementById('yt-modal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'yt-modal';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="yt-modal-box" role="dialog" aria-label="YouTube video">
+      <button type="button" class="yt-modal-close" aria-label="Close">&times;</button>
+      <div class="yt-modal-player">
+        <iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&origin=https://polichan.org"
+          frameborder="0"
+          allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;fullscreen"
+          allowfullscreen></iframe>
+      </div>
+    </div>`;
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('.yt-modal-close').addEventListener('click', close);
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  document.body.appendChild(overlay);
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────
 
 const REPORT_REASONS = [
