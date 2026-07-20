@@ -60,11 +60,13 @@ module.exports = {
   },
 
   // JSON RPC endpoints for on-chain flair checks (chainId → URL)
+  // llamarpc.com is unreachable from our VPS (Cloudflare blocks/521s it),
+  // so defaults point at publicnode instead; still overridable via env.
   rpc: {
-    1:        process.env.RPC_ETH      || 'https://eth.llamarpc.com',
-    137:      process.env.RPC_POLYGON  || 'https://polygon.llamarpc.com',
+    1:        process.env.RPC_ETH      || 'https://ethereum-rpc.publicnode.com',
+    137:      process.env.RPC_POLYGON  || 'https://polygon-bor-rpc.publicnode.com',
     8453:     process.env.RPC_BASE     || 'https://mainnet.base.org',
-    11155111: process.env.RPC_SEPOLIA  || 'https://sepolia.llamarpc.com'
+    11155111: process.env.RPC_SEPOLIA  || 'https://ethereum-sepolia-rpc.publicnode.com'
   },
 
   polipass: {
