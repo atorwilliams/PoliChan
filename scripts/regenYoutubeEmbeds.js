@@ -1,9 +1,9 @@
 'use strict';
 
 // Regenerate bodyHtml for every thread/post containing a YouTube link, so
-// existing posts pick up the new thumbnail+play-button embed (see
-// services/markup.js) instead of the old inline iframe. Raw bodies are
-// unaffected — this only recomputes the cached bodyHtml.
+// existing posts pick up the current embed markup (see services/markup.js)
+// instead of whatever the previous format was. Raw bodies are unaffected —
+// this only recomputes the cached bodyHtml.
 //
 // Usage: node scripts/regenYoutubeEmbeds.js [--dry-run]
 

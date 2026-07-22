@@ -68,20 +68,8 @@ const CB_AUDIO   = /https?:\/\/files\.catbox\.moe\/\S+\.mp3/gi;
 function generateEmbeds(rawBody) {
   const parts = [];
 
-  for (const m of rawBody.matchAll(YT_RE)) {
-    const id = m[1];
-    // A thumbnail + play button instead of an inline iframe — avoids a live
-    // embed per post (heavy, and jarring when several stack in a thread).
-    // Click behavior (modal vs new tab) is decided client-side in main.js
-    // based on viewport, since that can change after the page loads.
-    parts.push(
-      `<div class="post-embed yt-embed-thumb" data-yt-id="${id}">` +
-      `<img src="https://img.youtube.com/vi/${id}/hqdefault.jpg" loading="lazy" alt="YouTube video thumbnail">` +
-      `<button type="button" class="yt-play-btn" aria-label="Play video" onclick="playYouTubeEmbed(event,'${id}')">` +
-      `<svg viewBox="0 0 68 48" width="56" height="40"><path d="M66.5,7.7c-0.8-2.9-2.5-5.2-5.4-6C55.8,0,34,0,34,0S12.2,0,6.9,1.7c-2.9,0.8-5.2,3.1-6,6C0,13,0,24,0,24s0,11,1.7,16.3c0.8,2.9,2.5,5.2,5.4,6C12.2,48,34,48,34,48s21.8,0,27.1-1.7c2.9-0.8,5.2-3.1,6-6C68,35,68,24,68,24S68,13,66.5,7.7z" fill="#212121" fill-opacity="0.8"/><path d="M 45,24 27,14 27,34" fill="#fff"/></svg>` +
-      `</button></div>`
-    );
-  }
+  // YouTube links get a small inline "Watch here" button next to the plain
+  // link instead (see parseLine) — nothing to append at the block level.
 
   for (const m of rawBody.matchAll(CB_VIDEO)) {
     parts.push(`<div class="post-embed"><video src="${escapeHtml(m[0])}" controls loop preload="metadata"></video></div>`);
@@ -133,6 +121,18 @@ function parseLine(line) {
     `<a class="quotelink" href="#p${id}">&gt;&gt;${id}</a>`
   );
 
+  // YouTube links get a plain link plus a small inline "Watch here" button
+  // instead of a visible embed. Swapped for a placeholder token first so the
+  // generic URL linkify pass below can't re-match and double-wrap the link.
+  const ytStash = [];
+  line = line.replace(YT_RE, (m, id) => {
+    const clean = m.replace(/[.,;:!?)]+$/, '');
+    const html = `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a> ` +
+      `<button type="button" class="yt-watch-btn" onclick="playYouTubeEmbed(event,'${id}')">▶ Watch here</button>`;
+    ytStash.push(html);
+    return ` YT${ytStash.length - 1} `;
+  });
+
   // Plain URLs → clickable links (http/https only, never javascript:/data:)
   line = line.replace(/https?:\/\/[^\s<>"]+/g, url => {
     const clean = url.replace(/[.,;:!?)]+$/, '');
@@ -153,6 +153,12 @@ function parseLine(line) {
 
   // `inline code`
   line = line.replace(/`(.+?)`/g, '<code>$1</code>');
+
+  // Restore YouTube link+button HTML stashed above, now that no further
+  // regex passes can touch it.
+  if (ytStash.length) {
+    line = line.replace(/ YT(\d+) /g, (_, i) => ytStash[i]);
+  }
 
   return line;
 }
