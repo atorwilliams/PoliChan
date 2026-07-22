@@ -29,8 +29,10 @@ const RENAMES = [
   { from: 'ca-bc-yyj', to: 'yyj', homeCountry: 'CA' }
 ];
 
+const Counter = mongoose.models.Counter
+  || mongoose.model('Counter', new mongoose.Schema({ _id: String, seq: Number }), 'counters');
+
 async function renameCounter(from, to) {
-  const Counter = mongoose.model('Counter', new mongoose.Schema({ _id: String, seq: Number }), 'counters');
   const oldDoc = await Counter.findById(`board:${from}`).lean();
   if (!oldDoc) { console.log(`  no counter doc for board:${from}`); return; }
   console.log(`  counter board:${from} (seq ${oldDoc.seq}) -> board:${to}`);
