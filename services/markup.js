@@ -61,7 +61,7 @@ function applyWordFilter(str) {
 
 // ── Embed detection ────────────────────────────────────────────────────────────
 
-const YT_RE      = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/g;
+const YT_RE      = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})(?:[?&][^\s<>"]*)?/g;
 const CB_VIDEO   = /https?:\/\/files\.catbox\.moe\/\S+\.(?:mp4|webm)/gi;
 const CB_AUDIO   = /https?:\/\/files\.catbox\.moe\/\S+\.mp3/gi;
 
