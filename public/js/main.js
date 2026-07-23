@@ -2038,20 +2038,15 @@ function expandMedia(img) {
 }
 
 // ── YouTube embeds ──────────────────────────────────────────────────────────────
-// Thumbnails render everywhere (see services/markup.js); clicking one opens an
-// in-page modal player on desktop, or just opens YouTube on mobile — a modal
-// iframe on a small screen is more annoying than useful, and the OS-level
-// YouTube app/tab handles it better there.
+// Clicking "Watch here" opens an in-page modal player on every device. Mobile
+// used to open youtube.com/watch in a new tab, but a direct link/navigation
+// to that URL triggers the OS-level universal link and force-opens the
+// YouTube app instead of just showing the video — an iframe embed doesn't
+// trigger that, so the modal is the only way to actually watch inline.
 
 function playYouTubeEmbed(event, id) {
   event.preventDefault();
   event.stopPropagation();
-
-  const isDesktop = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 768;
-  if (!isDesktop) {
-    window.open(`https://www.youtube.com/watch?v=${id}`, '_blank', 'noopener');
-    return;
-  }
 
   document.getElementById('yt-modal')?.remove();
 
