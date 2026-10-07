@@ -8,17 +8,14 @@ const Board     = require('../models/Board');
 const markup    = require('../services/markup');
 const sourceTag = require('../services/sourceTag');
 const ipHash    = require('../services/ipHash');
-const media     = require('../services/media');
 const counter   = require('../services/counter');
 const upload    = require('../middleware/upload');
 const captcha   = require('../middleware/captcha');
 const { floodCheck } = require('../middleware/rateLimit');
-const geoip          = require('../services/geoip');
-const CountryFlair   = require('../models/CountryFlair');
 const config         = require('../config');
-const tripcodes      = require('../services/tripcode');
 const removal        = require('../services/removal');
 const posterIds      = require('../services/posterId');
+const postBuilder    = require('../services/postBuilder');
 
 // GET /api/posts/find/:boardUri/:id — resolve a board-local post/thread ID
 // to its thread. IDs are per-board, so the board is required context.
@@ -72,170 +69,79 @@ router.get('/:boardUri/:threadId', async (req, res) => {
 });
 
 // POST /api/posts/:boardUri/:threadId — reply to a thread
-router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (req, res) => {
-  try {
-    const { boardUri, threadId: threadIdStr } = req.params;
-    const threadId = parseInt(threadIdStr);
+router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, postBuilder.handle(async (req, res) => {
+  const { boardUri, threadId: threadIdStr } = req.params;
+  const threadId = parseInt(threadIdStr);
 
-    const [thread, board] = await Promise.all([
-      Thread.findOne({ boardUri, threadId }),
-      Board.findOne({ uri: boardUri }).select('allowedCountries country minTier').lean()
-    ]);
-    if (!thread) return res.status(404).json({ error: 'Thread not found' });
-    if (thread.isLocked) return res.status(403).json({ error: 'Thread is locked' });
+  const [thread, board] = await Promise.all([
+    Thread.findOne({ boardUri, threadId }),
+    Board.findOne({ uri: boardUri }).lean()
+  ]);
+  if (!thread || !board) return res.status(404).json({ error: 'Thread not found' });
+  if (thread.isLocked) return res.status(403).json({ error: 'Thread is locked' });
 
-    // Tier-gate check
-    {
-      const tier    = req.session?.poliPassTier || 0;
-      const isAdmin = req.session?.isAdmin || false;
-      if (board && !isAdmin && (board.minTier || 0) > tier) {
-        return res.status(403).json({ error: 'A higher-tier PoliPass is required to access this board' });
-      }
-    }
+  await postBuilder.checkAccess(req, board);
 
-    // Region lock check
-    if (board?.allowedCountries?.length > 0) {
-      const rawIpCheck = req.ip || req.connection.remoteAddress;
-      const country    = geoip.getCountry(rawIpCheck);
-      if (!country || !board.allowedCountries.map(c => c.toUpperCase()).includes(country.toUpperCase())) {
-        return res.status(403).json({ error: 'This board is region-locked' });
-      }
-    }
+  // Replies may be image-only; threads still require both.
+  const text = req.body.body?.trim() || '';
+  if (!text && !req.file) return res.status(400).json({ error: 'A comment or an image is required' });
+  if (text.length > 5000) return res.status(400).json({ error: 'Body must be 5000 characters or fewer' });
 
-    const { body, name: rawName } = req.body;
-    const name = rawName?.trim().slice(0, 50) || '';
-    // Replies may be image-only; threads (threads.js) still require both.
-    const text = body?.trim() || '';
-    if (!text && !req.file) return res.status(400).json({ error: 'A comment or an image is required' });
-    if (text.length > 5000) return res.status(400).json({ error: 'Body must be 5000 characters or fewer' });
+  const mediaDoc = await postBuilder.processMedia(req, boardUri);
+  const postId   = await counter.nextId(boardUri);
+  const author   = await postBuilder.authorFields(req, board);
 
-    // Process upload if present
-    let mediaDoc = null;
-    if (req.file) {
-      try {
-        mediaDoc = await media.processUpload(req.file, boardUri);
-      } catch (err) {
-        return res.status(400).json({ error: err.message });
-      }
-    }
+  const post = await Post.create({
+    boardUri,
+    threadId,
+    postId,
+    body:      text,
+    bodyHtml:  text ? await markup.process(text) : '',
+    quotes:    markup.extractQuotes(text),
+    sourceTag: sourceTag.tag(text),
+    media:     mediaDoc,
+    ...author
+  });
 
-    // Get next ID in this board's sequence
-    const postId = await counter.nextId(boardUri);
+  // Check sage
+  const isSage = req.body.sage === 'true' || author.name.toLowerCase() === 'sage';
+  const hitBumpLimit = thread.replyCount + 1 >= config.threads.bumpLimit;
 
-    const rawIp = req.ip || req.connection.remoteAddress;
-    const ip    = ipHash.hash(rawIp);
+  const threadUpdate = {
+    $inc: { replyCount: 1 },
+    lastReplyAt: new Date()
+  };
 
-    // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session flair
-    let postFlair        = null;
-    let postFlairColor   = null;
-    let postFlairBgColor = null;
-
-    const flairVal = req.body.flairVariant;
-    const tier     = req.session?.poliPassTier || 0;
-
-    if (flairVal === 'none') {
-      // user opted out — leave null
-    } else if (flairVal?.startsWith('g:')) {
-      const idx    = parseInt(flairVal.slice(2));
-      const global = require('../config/globalFlairs.json');
-      const chosen = global[idx];
-      if (chosen) { postFlair = chosen.label; postFlairColor = chosen.color; postFlairBgColor = chosen.bgColor; }
-    } else if (flairVal?.startsWith('v:') && tier > 0) {
-      const idx      = parseInt(flairVal.slice(2));
-      const variants = require('../config/variants.json');
-      const chosen   = (variants[String(tier)] || [])[idx];
-      if (chosen) { postFlair = chosen.label; postFlairColor = chosen.color; postFlairBgColor = chosen.bgColor; }
-    } else {
-      postFlair        = req.session?.flair        || null;
-      postFlairColor   = req.session?.flairColor   || null;
-      postFlairBgColor = req.session?.flairBgColor || null;
-    }
-
-    // Country flair override — always applied when poster is foreign to the board's home country
-    {
-      const posterCountry = geoip.getCountry(rawIp);
-      const homeCountry = board?.homeCountry
-        || (board?.country?.length === 2 ? board.country.toUpperCase() : '');
-      if (posterCountry && homeCountry && posterCountry !== homeCountry) {
-        const rule = await CountryFlair.findOne({
-          fromCountry: posterCountry,
-          toCountry:   homeCountry
-        }).lean();
-        if (rule) {
-          postFlair        = rule.label;
-          postFlairColor   = rule.color;
-          postFlairBgColor = rule.bgColor;
-        } else {
-          postFlair        = posterCountry;
-          postFlairColor   = '#e2e8f0';
-          postFlairBgColor = '#374151';
-        }
-      }
-    }
-
-    const post = await Post.create({
-      boardUri,
-      threadId,
-      postId,
-      name,
-      body:      text,
-      bodyHtml:  text ? await markup.process(text) : '',
-      quotes:    markup.extractQuotes(text),
-      sourceTag: sourceTag.tag(text),
-      media:     mediaDoc,
-      ip,
-      authorId:     req.session?.accountId || null,
-      tripcode:     (req.session?.isAdmin && req.body.randomTrip === 'true')
-                      ? tripcodes.random()
-                      : (req.body.showTripcode === 'true' && req.session?.tripcode) ? req.session.tripcode : null,
-      flair:        postFlair,
-      flairColor:   postFlairColor,
-      flairBgColor: postFlairBgColor,
-      isModPost:    (req.session?.isAdmin || req.session?.staffRole === 'mod') && req.body.postAnon !== 'true',
-      randomPosterId: (req.session?.isAdmin && req.body.randomId === 'true') ? posterIds.randomPosterId() : null
-    });
-
-    // Check sage
-    const isSage = req.body.sage === 'true' || req.body.name?.trim().toLowerCase() === 'sage';
-    const hitBumpLimit = thread.replyCount + 1 >= config.threads.bumpLimit;
-
-    const threadUpdate = {
-      $inc: { replyCount: 1 },
-      lastReplyAt: new Date()
-    };
-
-    if (!isSage && !thread.bumpLimit && !hitBumpLimit) {
-      threadUpdate.bumpedAt = new Date();
-    }
-
-    if (hitBumpLimit && !thread.bumpLimit) {
-      threadUpdate.bumpLimit = true;
-    }
-
-    await Thread.updateOne({ boardUri, threadId }, threadUpdate);
-    await Board.updateOne({ uri: boardUri }, { $inc: { postCount: 1 } });
-
-    req.io.to(`${boardUri}:${threadId}`).emit('new-post', {
-      postId:      post.postId,
-      threadId:    post.threadId,
-      name:        post.name || '',
-      bodyHtml:    post.bodyHtml,
-      tripcode:    post.tripcode,
-      flair:       post.flair,
-      flairColor:  post.flairColor   || null,
-      flairBgColor: post.flairBgColor || null,
-      isModPost:   post.isModPost,
-      media:       post.media || null,
-      quotes:      post.quotes || [],
-      posterId:    post.isModPost ? null : (post.randomPosterId || posterIds.posterId(ip, boardUri, threadId)),
-      createdAt:   post.createdAt
-    });
-
-    res.status(201).json({ postId: post.postId });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  if (!isSage && !thread.bumpLimit && !hitBumpLimit) {
+    threadUpdate.bumpedAt = new Date();
   }
-});
+
+  if (hitBumpLimit && !thread.bumpLimit) {
+    threadUpdate.bumpLimit = true;
+  }
+
+  await Thread.updateOne({ boardUri, threadId }, threadUpdate);
+  await Board.updateOne({ uri: boardUri }, { $inc: { postCount: 1 } });
+
+  const pub = posterIds.withPosterId(post.toObject(), boardUri, threadId);
+  req.io.to(`${boardUri}:${threadId}`).emit('new-post', {
+    postId:       pub.postId,
+    threadId:     pub.threadId,
+    name:         pub.name || '',
+    bodyHtml:     pub.bodyHtml,
+    tripcode:     pub.tripcode,
+    flair:        pub.flair,
+    flairColor:   pub.flairColor   || null,
+    flairBgColor: pub.flairBgColor || null,
+    isModPost:    pub.isModPost,
+    media:        pub.media || null,
+    quotes:       pub.quotes || [],
+    posterId:     pub.posterId,
+    createdAt:    pub.createdAt
+  });
+
+  res.status(201).json({ postId: post.postId });
+}));
 
 // POST /api/posts/:boardUri/:threadId/report
 router.post('/:boardUri/:threadId/report', async (req, res) => {
