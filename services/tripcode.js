@@ -26,4 +26,12 @@ function generate(walletAddress) {
   return toBase58(digest).slice(0, 8);
 }
 
-module.exports = { generate };
+/**
+ * One-off random tripcode, same shape as generate() so it is
+ * indistinguishable from a real one. Used for admin disguised posts.
+ */
+function random() {
+  return toBase58(crypto.randomBytes(32)).slice(0, 8);
+}
+
+module.exports = { generate, random };

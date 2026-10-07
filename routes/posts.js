@@ -16,6 +16,7 @@ const { floodCheck } = require('../middleware/rateLimit');
 const geoip          = require('../services/geoip');
 const CountryFlair   = require('../models/CountryFlair');
 const config         = require('../config');
+const tripcodes      = require('../services/tripcode');
 const removal        = require('../services/removal');
 const posterIds      = require('../services/posterId');
 
@@ -184,7 +185,9 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       media:     mediaDoc,
       ip,
       authorId:     req.session?.accountId || null,
-      tripcode:     (req.body.showTripcode === 'true' && req.session?.tripcode) ? req.session.tripcode : null,
+      tripcode:     (req.session?.isAdmin && req.body.randomTrip === 'true')
+                      ? tripcodes.random()
+                      : (req.body.showTripcode === 'true' && req.session?.tripcode) ? req.session.tripcode : null,
       flair:        postFlair,
       flairColor:   postFlairColor,
       flairBgColor: postFlairBgColor,

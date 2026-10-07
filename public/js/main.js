@@ -1139,6 +1139,13 @@ function threadForm(boardUri) {
               Post anonymously (hide Mod label)
             </label></td>
           </tr>` : ''}
+          ${state.session?.isAdmin ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="nt-randtrip" style="width:auto">
+              Post with random tripcode
+            </label></td>
+          </tr>` : ''}
         </tbody>
       </table>
       <div class="form-note" id="nt-error"></div>
@@ -1171,6 +1178,7 @@ async function submitThread(boardUri) {
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('nt-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('nt-anon')?.checked) fields.postAnon = 'true';
+    if (document.getElementById('nt-randtrip')?.checked) fields.randomTrip = 'true';
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
     addYourPost(boardUri, threadId);
     watchThread(boardUri, threadId, subject || body.slice(0, 60), 0);
@@ -1733,6 +1741,13 @@ function replyFormHtml(boardUri, threadId) {
                   Post anonymously (hide Mod label)
                 </label></td>
               </tr>` : ''}
+              ${state.session?.isAdmin ? `<tr>
+                <td class="lbl"></td>
+                <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+                  <input type="checkbox" id="rp-randtrip" style="width:auto">
+                  Post with random tripcode
+                </label></td>
+              </tr>` : ''}
             </tbody>
           </table>
           <div style="padding:5px 0">
@@ -1796,6 +1811,13 @@ function setupQuickReply(boardUri, threadId) {
             <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
               <input type="checkbox" id="qr-anon" style="width:auto">
               Post anonymously (hide Mod label)
+            </label></td>
+          </tr>` : ''}
+          ${state.session?.isAdmin ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="qr-randtrip" style="width:auto">
+              Post with random tripcode
             </label></td>
           </tr>` : ''}
         </tbody>
@@ -1933,6 +1955,7 @@ async function submitReply(boardUri, threadId) {
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('rp-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('rp-anon')?.checked) fields.postAnon = 'true';
+    if (document.getElementById('rp-randtrip')?.checked) fields.randomTrip = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     addYourPost(boardUri, postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
@@ -1966,6 +1989,7 @@ async function submitQR(boardUri, threadId) {
     if (captchaToken) fields['cf-turnstile-response'] = captchaToken;
     if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('qr-anon')?.checked) fields.postAnon = 'true';
+    if (document.getElementById('qr-randtrip')?.checked) fields.randomTrip = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     addYourPost(boardUri, postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
