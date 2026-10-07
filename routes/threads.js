@@ -235,7 +235,8 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, async (req, res
       flair:        postFlair,
       flairColor:   postFlairColor,
       flairBgColor: postFlairBgColor,
-      isModPost:    (req.session?.isAdmin || req.session?.staffRole === 'mod') && req.body.postAnon !== 'true'
+      isModPost:    (req.session?.isAdmin || req.session?.staffRole === 'mod') && req.body.postAnon !== 'true',
+      randomPosterId: (req.session?.isAdmin && req.body.randomId === 'true') ? posterIds.randomPosterId() : null
     });
 
     await Board.updateOne({ uri: board.uri }, { $inc: { threadCount: 1 } });

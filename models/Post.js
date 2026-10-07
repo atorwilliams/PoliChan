@@ -34,6 +34,8 @@ const postSchema = new mongoose.Schema({
   isRemoved:     { type: Boolean, default: false },
   removedReason: { type: String, default: null },
   isModPost:  { type: Boolean, default: false },
+  // Admin-chosen one-off poster ID; replaces the IP-derived one when set
+  randomPosterId: { type: String, default: null },
   ip:         { type: String }  // HMAC-SHA256 hashed
 }, { timestamps: true });
 

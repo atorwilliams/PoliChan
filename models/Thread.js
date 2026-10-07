@@ -49,6 +49,8 @@ const threadSchema = new mongoose.Schema({
   bumpLimit:   { type: Boolean, default: false },
   lastReplyAt: { type: Date, default: null },
   bumpedAt:    { type: Date, default: Date.now },
+  // Admin-chosen one-off poster ID; replaces the IP-derived one when set
+  randomPosterId: { type: String, default: null },
   ip:          { type: String }                   // HMAC-SHA256 hashed
 }, { timestamps: true });
 

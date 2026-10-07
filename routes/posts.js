@@ -191,7 +191,8 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       flair:        postFlair,
       flairColor:   postFlairColor,
       flairBgColor: postFlairBgColor,
-      isModPost:    (req.session?.isAdmin || req.session?.staffRole === 'mod') && req.body.postAnon !== 'true'
+      isModPost:    (req.session?.isAdmin || req.session?.staffRole === 'mod') && req.body.postAnon !== 'true',
+      randomPosterId: (req.session?.isAdmin && req.body.randomId === 'true') ? posterIds.randomPosterId() : null
     });
 
     // Check sage
@@ -226,7 +227,7 @@ router.post('/:boardUri/:threadId', floodCheck('post'), upload, captcha, async (
       isModPost:   post.isModPost,
       media:       post.media || null,
       quotes:      post.quotes || [],
-      posterId:    post.isModPost ? null : posterIds.posterId(ip, boardUri, threadId),
+      posterId:    post.isModPost ? null : (post.randomPosterId || posterIds.posterId(ip, boardUri, threadId)),
       createdAt:   post.createdAt
     });
 

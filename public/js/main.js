@@ -1146,6 +1146,13 @@ function threadForm(boardUri) {
               Post with random tripcode
             </label></td>
           </tr>` : ''}
+          ${state.session?.isAdmin ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="nt-randid" style="width:auto">
+              Post with random ID
+            </label></td>
+          </tr>` : ''}
         </tbody>
       </table>
       <div class="form-note" id="nt-error"></div>
@@ -1179,6 +1186,7 @@ async function submitThread(boardUri) {
     if (document.getElementById('nt-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('nt-anon')?.checked) fields.postAnon = 'true';
     if (document.getElementById('nt-randtrip')?.checked) fields.randomTrip = 'true';
+    if (document.getElementById('nt-randid')?.checked) fields.randomId = 'true';
     const { threadId } = await api.upload('/threads/' + boardUri, fields, fileInput);
     addYourPost(boardUri, threadId);
     watchThread(boardUri, threadId, subject || body.slice(0, 60), 0);
@@ -1748,6 +1756,13 @@ function replyFormHtml(boardUri, threadId) {
                   Post with random tripcode
                 </label></td>
               </tr>` : ''}
+              ${state.session?.isAdmin ? `<tr>
+                <td class="lbl"></td>
+                <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+                  <input type="checkbox" id="rp-randid" style="width:auto">
+                  Post with random ID
+                </label></td>
+              </tr>` : ''}
             </tbody>
           </table>
           <div style="padding:5px 0">
@@ -1818,6 +1833,13 @@ function setupQuickReply(boardUri, threadId) {
             <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
               <input type="checkbox" id="qr-randtrip" style="width:auto">
               Post with random tripcode
+            </label></td>
+          </tr>` : ''}
+          ${state.session?.isAdmin ? `<tr>
+            <td class="lbl"></td>
+            <td><label style="font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="qr-randid" style="width:auto">
+              Post with random ID
             </label></td>
           </tr>` : ''}
         </tbody>
@@ -1956,6 +1978,7 @@ async function submitReply(boardUri, threadId) {
     if (document.getElementById('rp-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('rp-anon')?.checked) fields.postAnon = 'true';
     if (document.getElementById('rp-randtrip')?.checked) fields.randomTrip = 'true';
+    if (document.getElementById('rp-randid')?.checked) fields.randomId = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     addYourPost(boardUri, postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
@@ -1990,6 +2013,7 @@ async function submitQR(boardUri, threadId) {
     if (document.getElementById('qr-tripcode')?.checked) fields.showTripcode = 'true';
     if (document.getElementById('qr-anon')?.checked) fields.postAnon = 'true';
     if (document.getElementById('qr-randtrip')?.checked) fields.randomTrip = 'true';
+    if (document.getElementById('qr-randid')?.checked) fields.randomId = 'true';
     const { postId } = await api.upload(`/posts/${boardUri}/${threadId}`, fields, fileInput);
     addYourPost(boardUri, postId);
     if (!_watched[`${boardUri}:${threadId}`]) watchThread(boardUri, threadId, '', 0);
