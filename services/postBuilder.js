@@ -40,7 +40,7 @@ function activeBan(ip, boardUri) {
 /**
  * Throws a PostError if this request may not post to the board:
  * banned, below the board's PoliPass tier, or outside its region lock.
- * Admins bypass the tier gate and bans (so staff can't lock themselves out).
+ * Admins bypass all three (so staff can't lock themselves out).
  */
 async function checkAccess(req, board) {
   const isAdmin = req.session?.isAdmin || false;
@@ -58,12 +58,12 @@ async function checkAccess(req, board) {
     if ((board.minTier || 0) > tier) {
       throw new PostError(403, 'A higher-tier PoliPass is required to access this board');
     }
-  }
 
-  if (board.allowedCountries?.length > 0) {
-    const country = geoip.getCountry(rawIp(req));
-    if (!country || !board.allowedCountries.map(c => c.toUpperCase()).includes(country.toUpperCase())) {
-      throw new PostError(403, 'This board is region-locked');
+    if (board.allowedCountries?.length > 0) {
+      const country = geoip.getCountry(rawIp(req));
+      if (!country || !board.allowedCountries.map(c => c.toUpperCase()).includes(country.toUpperCase())) {
+        throw new PostError(403, 'This board is region-locked');
+      }
     }
   }
 }
@@ -78,7 +78,8 @@ async function processMedia(req, boardUri) {
 }
 
 // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session flair.
-// A country flair always overrides when the poster is foreign to the board's home country.
+// A country flair overrides when the poster is foreign to the board's home country.
+// Admins are always treated as posting from the board's country, so they never get one.
 async function resolveFlair(req, board) {
   let flair = { label: null, color: null, bgColor: null };
 
@@ -101,7 +102,7 @@ async function resolveFlair(req, board) {
     };
   }
 
-  const posterCountry = geoip.getCountry(rawIp(req));
+  const posterCountry = req.session?.isAdmin ? null : geoip.getCountry(rawIp(req));
   const homeCountry = board.homeCountry
     || (board.country?.length === 2 ? board.country.toUpperCase() : '');
   if (posterCountry && homeCountry && posterCountry !== homeCountry) {
