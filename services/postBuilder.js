@@ -80,10 +80,11 @@ async function processMedia(req, boardUri) {
 // Flair: g:N = global, v:N = PoliPass variant, none = opt out, else session flair.
 // A country flair overrides when the poster is foreign to the board's home country.
 // Admins are always treated as posting from the board's country, so they never get one.
-async function resolveFlair(req, board) {
+// Thread OPs have no flair picker, so they carry no chosen/account flair (country flair still applies).
+async function resolveFlair(req, board, { isOp = false } = {}) {
   let flair = { label: null, color: null, bgColor: null };
 
-  const flairVal = req.body.flairVariant;
+  const flairVal = isOp ? 'none' : req.body.flairVariant;
   const tier     = req.session?.poliPassTier || 0;
 
   if (flairVal === 'none') {
@@ -116,7 +117,7 @@ async function resolveFlair(req, board) {
 /**
  * Author fields shared by Thread and Post documents.
  */
-async function authorFields(req, board) {
+async function authorFields(req, board, { isOp = false } = {}) {
   const s       = req.session;
   const isAdmin = s?.isAdmin || false;
 
@@ -129,7 +130,7 @@ async function authorFields(req, board) {
     ip:             ipHash.hash(rawIp(req)),
     authorId:       s?.accountId || null,
     tripcode,
-    ...(await resolveFlair(req, board)),
+    ...(await resolveFlair(req, board, { isOp })),
     isModPost:      (isAdmin || s?.staffRole === 'mod') && req.body.postAnon !== 'true',
     randomPosterId: (isAdmin && req.body.randomId === 'true') ? posterIds.randomPosterId() : null
   };

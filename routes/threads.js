@@ -142,7 +142,7 @@ router.post('/:boardUri', floodCheck('thread'), upload, captcha, postBuilder.han
 
   const mediaDoc = await postBuilder.processMedia(req, board.uri);
   const threadId = await counter.nextId(board.uri);
-  const author   = await postBuilder.authorFields(req, board);
+  const author   = await postBuilder.authorFields(req, board, { isOp: true });
 
   const thread = await Thread.create({
     boardUri: board.uri,
